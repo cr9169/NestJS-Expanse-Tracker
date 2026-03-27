@@ -37,7 +37,7 @@ import { EXPENSES_SERVICE_TOKEN } from './tokens'; // used as the ClientProxy na
     ]),
   ],
   controllers: [AuthController],
-  providers: [AppConfigService, JwtStrategy],
+  providers: [JwtStrategy],
   // JwtStrategy and PassportModule are exported so the global JwtAuthGuard
   // (registered in bootstrap) can use the 'jwt' strategy defined here.
   exports: [JwtStrategy, PassportModule],

@@ -3,7 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 import { appConfigSchema } from './config/app.config';
-import { AppConfigService } from './config/app-config.service';
+import { AppConfigModule } from './config/app-config.module';
 import { AuthModule } from './auth/auth.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { HealthController } from './health/health.controller';
@@ -30,10 +30,10 @@ import { HealthController } from './health/health.controller';
       }),
     }),
 
+    AppConfigModule,
     AuthModule,
     ExpensesModule,
   ],
   controllers: [HealthController],
-  providers: [AppConfigService],
 })
 export class AppModule {}

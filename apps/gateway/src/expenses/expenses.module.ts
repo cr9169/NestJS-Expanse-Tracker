@@ -23,6 +23,5 @@ import { EXPENSES_CLIENT_TOKEN } from './tokens';
     ]),
   ],
   controllers: [ExpensesController],
-  providers: [AppConfigService],
 })
 export class ExpensesModule {}
