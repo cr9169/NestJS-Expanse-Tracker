@@ -1,0 +1,22 @@
+{
+  "name": "@app/shared",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json --watch"
+  },
+  "peerDependencies": {
+    "class-transformer": ">=0.5.0",
+    "class-validator": ">=0.14.0",
+    "@nestjs/swagger": ">=7.0.0"
+  },
+  "devDependencies": {
+    "@nestjs/swagger": "^7.3.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "typescript": "^5.4.0"
+  }
+}

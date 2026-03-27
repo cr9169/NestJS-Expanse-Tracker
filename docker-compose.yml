@@ -1,0 +1,71 @@
+version: '3.9'
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ARCHITECTURE NOTE:
+# The expenses-service TCP port (3001) is intentionally NOT exposed to the host.
+# Only the gateway (3000) is public-facing. This enforces the microservice
+# boundary at the network level — clients can never bypass the gateway.
+# In Week 2+, additional services follow the same pattern.
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  gateway:
+    build:
+      context: ./apps/gateway
+      dockerfile: Dockerfile
+      target: production
+    ports:
+      - '3000:3000'
+    environment:
+      GATEWAY_PORT: 3000
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-15m}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
+      TCP_HOST: expenses-service
+      TCP_PORT: 3001
+      THROTTLE_TTL: ${THROTTLE_TTL:-60000}
+      THROTTLE_LIMIT: ${THROTTLE_LIMIT:-10}
+    depends_on:
+      expenses-service:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - internal
+    restart: unless-stopped
+
+  expenses-service:
+    build:
+      context: ./apps/expenses-service
+      dockerfile: Dockerfile
+      target: production
+    # No ports exposed — only reachable via internal Docker network
+    environment:
+      TCP_PORT: 3001
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      SQLITE_PATH: /data/expenses.db
+    volumes:
+      - sqlite-data:/data
+    healthcheck:
+      # TCP microservices don't have HTTP — we check if the process is alive
+      test: ['CMD', 'node', '-e', "require('net').createConnection(3001, 'localhost').on('connect', () => process.exit(0)).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - internal
+    restart: unless-stopped
+
+volumes:
+  sqlite-data:
+    driver: local
+
+networks:
+  internal:
+    driver: bridge
