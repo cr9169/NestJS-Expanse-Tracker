@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git -C /c/Users/BarGabay/repos/NestJS-Expanse-Tracker status)"
+      "Bash(git -C /c/Users/BarGabay/repos/NestJS-Expanse-Tracker status)",
+      "Bash(npm show:*)",
+      "Bash(npm install:*)"
     ]
   }
 }
