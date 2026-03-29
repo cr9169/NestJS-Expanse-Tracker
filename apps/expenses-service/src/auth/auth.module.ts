@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
 
-import { AppConfigService } from '../config/app-config.service';
 import { DatabaseModule } from '../database/database.module';
 
 import { LoginUserUseCase } from './application/use-cases/login-user.use-case';
@@ -25,7 +24,6 @@ import {
   ],
   controllers: [AuthController],
   providers: [
-    AppConfigService,
     { provide: USER_REPOSITORY_TOKEN, useClass: SqliteUserRepository },
     { provide: REGISTER_USER_USE_CASE_TOKEN, useClass: RegisterUserUseCase },
     { provide: LOGIN_USER_USE_CASE_TOKEN, useClass: LoginUserUseCase },

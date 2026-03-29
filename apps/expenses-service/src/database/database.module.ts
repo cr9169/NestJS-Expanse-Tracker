@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 
-import { AppConfigService } from '../config/app-config.service';
-
+import { DATABASE_TOKEN } from './tokens';
 import { DatabaseProvider } from './database.provider';
 
 /**
@@ -10,7 +9,7 @@ import { DatabaseProvider } from './database.provider';
  * rejected: explicit imports make dependency flow visible in the module graph.
  */
 @Module({
-  providers: [AppConfigService, DatabaseProvider],
-  exports: [DatabaseProvider],
+  providers: [DatabaseProvider],
+  exports: [DATABASE_TOKEN],
 })
 export class DatabaseModule {}

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ValidationPipe } from '@nestjs/common';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 import { appConfigSchema } from './config/app.config';
@@ -7,6 +9,10 @@ import { AppConfigModule } from './config/app-config.module';
 import { AuthModule } from './auth/auth.module';
 import { ExpensesModule } from './expenses/expenses.module';
 import { HealthController } from './health/health.controller';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
 @Module({
   imports: [
@@ -35,5 +41,34 @@ import { HealthController } from './health/health.controller';
     ExpensesModule,
   ],
   controllers: [HealthController],
+  providers: [
+    // ── Global exception filter ───────────────────────────────────────────
+    // Registered first — catches exceptions from guards, interceptors, and pipes.
+    { provide: APP_FILTER, useClass: GlobalExceptionFilter },
+
+    // ── Global auth guard ─────────────────────────────────────────────────
+    // Secure by default — all routes require JWT unless @Public() is applied.
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+
+    // ── Global interceptors ───────────────────────────────────────────────
+    // Order matters: logging wraps transform so we log the final response shape.
+    { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
+
+    // ── Global validation pipe ────────────────────────────────────────────
+    // whitelist: strip unknown properties before they reach controllers
+    // forbidNonWhitelisted: 400 if unknown properties are present (not silent)
+    // transform: auto-convert query strings to typed instances (e.g. page: "1" → 1)
+    {
+      provide: APP_PIPE,
+      useFactory: () =>
+        new ValidationPipe({
+          whitelist: true,
+          forbidNonWhitelisted: true,
+          transform: true,
+          transformOptions: { enableImplicitConversion: false },
+        }),
+    },
+  ],
 })
 export class AppModule {}

@@ -6,15 +6,8 @@ import type { Observable } from 'rxjs';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 /**
- * ARCHITECTURE NOTE:
- * This guard extends Passport's AuthGuard('jwt') and adds the @Public() opt-out.
- * It is registered GLOBALLY in main.ts — not per-controller — so auth cannot be
- * accidentally omitted from a new route. The guard checks for the IS_PUBLIC_KEY
- * metadata set by @Public() before delegating to Passport.
- *
- * Registering globally in bootstrap (not as a module provider) is intentional:
- * module-level guards can be bypassed by importing a module without the guard.
- * Bootstrap-level registration applies unconditionally to every route.
+ * Global JWT guard registered via APP_GUARD in AppModule.
+ * All routes require a valid JWT unless decorated with @Public().
  */
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
