@@ -1,5 +1,5 @@
 import { Controller, Inject } from '@nestjs/common';
-import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 
 import { TCP_PATTERNS } from '@shared/constants/tcp-patterns.constants';
 import type { CreateExpenseDto } from '@shared/dtos/expense/create-expense.dto';
@@ -7,7 +7,7 @@ import type { UpdateExpenseDto } from '@shared/dtos/expense/update-expense.dto';
 import type { ListExpensesQueryDto } from '@shared/dtos/expense/list-expenses-query.dto';
 import type { ExpenseSummaryQueryDto } from '@shared/dtos/expense/expense-summary-query.dto';
 
-import { AppException } from '../common/exceptions/app.exception';
+import { handleRpc } from '../common/handle-rpc';
 
 import type { CreateExpenseUseCase } from './application/use-cases/create-expense.use-case';
 import type { DeleteExpenseUseCase } from './application/use-cases/delete-expense.use-case';
@@ -61,7 +61,7 @@ export class ExpensesController {
   async create(
     @Payload() payload: { userId: string; dto: CreateExpenseDto },
   ): Promise<Record<string, unknown>> {
-    return this.handle(async () => {
+    return handleRpc(async () => {
       const expense = await this.createExpense.execute({
         userId: payload.userId,
         dto: payload.dto,
@@ -74,7 +74,7 @@ export class ExpensesController {
   async findById(
     @Payload() payload: { id: string; userId: string },
   ): Promise<Record<string, unknown>> {
-    return this.handle(async () => {
+    return handleRpc(async () => {
       const expense = await this.getExpense.execute({
         id: payload.id,
         userId: payload.userId,
@@ -87,7 +87,7 @@ export class ExpensesController {
   async list(
     @Payload() payload: { userId: string; filters: ListExpensesQueryDto },
   ): Promise<unknown> {
-    return this.handle(async () => {
+    return handleRpc(async () => {
       const result = await this.listExpenses.execute({
         userId: payload.userId,
         filters: payload.filters,
@@ -105,7 +105,7 @@ export class ExpensesController {
   async update(
     @Payload() payload: { id: string; userId: string; dto: UpdateExpenseDto },
   ): Promise<Record<string, unknown>> {
-    return this.handle(async () => {
+    return handleRpc(async () => {
       const expense = await this.updateExpense.execute({
         id: payload.id,
         userId: payload.userId,
@@ -117,7 +117,7 @@ export class ExpensesController {
 
   @MessagePattern(TCP_PATTERNS.EXPENSES_DELETE)
   async delete(@Payload() payload: { id: string; userId: string }): Promise<void> {
-    return this.handle(async () => {
+    return handleRpc(async () => {
       await this.deleteExpense.execute({
         id: payload.id,
         userId: payload.userId,
@@ -129,7 +129,7 @@ export class ExpensesController {
   async getSummary(
     @Payload() payload: { userId: string; dto: ExpenseSummaryQueryDto },
   ): Promise<unknown> {
-    return this.handle(async () => {
+    return handleRpc(async () => {
       return this.getExpenseSummary.execute({
         userId: payload.userId,
         dto: payload.dto,
@@ -137,24 +137,4 @@ export class ExpensesController {
     });
   }
 
-  /**
-   * Centralised error wrapper.
-   * AppExceptions become RpcExceptions with their full metadata preserved.
-   * Unexpected errors become a generic RpcException to avoid leaking internals.
-   */
-  private async handle<T>(fn: () => Promise<T>): Promise<T> {
-    try {
-      return await fn();
-    } catch (error) {
-      if (error instanceof AppException) {
-        throw new RpcException({
-          code: error.code,
-          message: error.message,
-          statusCode: error.statusCode,
-        });
-      }
-      // Unknown error — don't expose internals
-      throw new RpcException({ code: 'INTERNAL_ERROR', message: 'Internal server error', statusCode: 500 });
-    }
-  }
 }

@@ -1,11 +1,11 @@
 import { Controller, Inject } from '@nestjs/common';
-import { MessagePattern, Payload, RpcException } from '@nestjs/microservices';
+import { MessagePattern, Payload } from '@nestjs/microservices';
 
 import { TCP_PATTERNS } from '@shared/constants/tcp-patterns.constants';
 import type { RegisterDto } from '@shared/dtos/auth/register.dto';
 import type { LoginDto } from '@shared/dtos/auth/login.dto';
 
-import { AppException } from '../common/exceptions/app.exception';
+import { handleRpc } from '../common/handle-rpc';
 
 import type { RegisterUserUseCase } from './application/use-cases/register-user.use-case';
 import type { LoginUserUseCase } from './application/use-cases/login-user.use-case';
@@ -31,31 +31,16 @@ export class AuthController {
 
   @MessagePattern(TCP_PATTERNS.AUTH_REGISTER)
   async register(@Payload() dto: RegisterDto): Promise<unknown> {
-    return this.handle(() => this.registerUser.execute(dto));
+    return handleRpc(() => this.registerUser.execute(dto));
   }
 
   @MessagePattern(TCP_PATTERNS.AUTH_LOGIN)
   async login(@Payload() dto: LoginDto): Promise<unknown> {
-    return this.handle(() => this.loginUser.execute(dto));
+    return handleRpc(() => this.loginUser.execute(dto));
   }
 
   @MessagePattern(TCP_PATTERNS.AUTH_REFRESH)
   async refresh(@Payload() payload: { refreshToken: string }): Promise<unknown> {
-    return this.handle(() => this.refreshToken.execute(payload.refreshToken));
-  }
-
-  private async handle<T>(fn: () => Promise<T>): Promise<T> {
-    try {
-      return await fn();
-    } catch (error) {
-      if (error instanceof AppException) {
-        throw new RpcException({
-          code: error.code,
-          message: error.message,
-          statusCode: error.statusCode,
-        });
-      }
-      throw new RpcException({ code: 'INTERNAL_ERROR', message: 'Internal server error', statusCode: 500 });
-    }
+    return handleRpc(() => this.refreshToken.execute(payload.refreshToken));
   }
 }

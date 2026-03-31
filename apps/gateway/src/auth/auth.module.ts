@@ -11,7 +11,7 @@ import { EXPENSES_SERVICE_TOKEN } from './tokens'; // used as the ClientProxy na
 
 @Module({
   imports: [
-    PassportModule.register({ defaultStrategy: 'jwt' }),
+    PassportModule,
 
     JwtModule.registerAsync({
       inject: [AppConfigService],

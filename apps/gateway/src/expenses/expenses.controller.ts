@@ -10,7 +10,6 @@ import {
   Patch,
   Post,
   Query,
-  UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -32,7 +31,6 @@ import { ExpenseSummaryQueryDto } from '@shared/dtos/expense/expense-summary-que
 import type { JwtPayload } from '@shared/types/jwt-payload.type';
 
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 
 import { EXPENSES_CLIENT_TOKEN } from './tokens';
 
@@ -50,7 +48,6 @@ import { EXPENSES_CLIENT_TOKEN } from './tokens';
  */
 @ApiTags('expenses')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('api/v1/expenses')
 export class ExpensesController {
   constructor(
