@@ -1,9 +1,36 @@
 {
+  // This config file is used exclusively by the `tsconfig-paths` package at runtime.
+  //
+  // Problem it solves:
+  //   TypeScript's `paths` aliases (e.g. @shared/*, @app/*) are compile-time only.
+  //   After `tsc` compiles the code, the emitted `.js` files still contain the
+  //   alias strings (e.g. `require('@shared/...')`), which Node.js cannot resolve
+  //   on its own because it only understands real file-system paths.
+  //
+  // Solution:
+  //   `tsconfig-paths/register` is loaded via `-r tsconfig-paths/register` in both
+  //   the `dev` script (ts-node-dev) and the `start` script (node dist/main.js).
+  //   It reads this file to know which aliases to remap to which directories,
+  //   then patches Node's `require()` at runtime so the aliases resolve correctly.
+  //
+  // This file is intentionally minimal — it only re-declares the fields that
+  // tsconfig-paths needs.  Full compiler options live in the app's tsconfig.json.
+
+  // Inherit base settings so tsconfig-paths can find the "baseUrl" anchor.
   "extends": "../../../tsconfig.base.json",
+
   "compilerOptions": {
+    // The same base directory used by the app's tsconfig.json.
+    // tsconfig-paths resolves every alias relative to this path.
     "baseUrl": ".",
+
+    // Mirror of the aliases declared in the app's tsconfig.json.
+    // Both entries must stay in sync whenever a new alias is added there.
     "paths": {
+      // Maps  @shared/<anything>  →  packages/shared/src/<anything>
       "@shared/*": ["../../../packages/shared/src/*"],
+
+      // Maps  @app/<anything>     →  expenses-service/src/<anything>
       "@app/*": ["./src/*"]
     }
   }

@@ -1,14 +1,47 @@
 {
+  // Inherit all compiler options defined in the monorepo root base config.
+  // Any option set here overrides the corresponding value from the base.
   "extends": "../../tsconfig.base.json",
+
   "compilerOptions": {
+
+    // Compiled JavaScript files are written to this directory.
+    // The `start` script in package.json runs `node dist/main.js`.
     "outDir": "./dist",
+
+    // Tell TypeScript to treat multiple physical directories as a single virtual
+    // root when resolving imports.  This is what lets the gateway import files
+    // from `packages/shared/src` without copying them into this app's tree.
+    //   ./src                    — the app's own source files
+    //   ../../packages/shared/src — shared DTOs, interfaces, and utilities
     "rootDirs": ["./src", "../../packages/shared/src"],
+
+    // The anchor directory for resolving bare path aliases defined in "paths" below.
+    // "." means "relative to the location of this tsconfig.json file".
     "baseUrl": ".",
+
+    // Short-hand import aliases so you don't have to write long relative paths.
+    //
+    //   @shared/*  →  ../../packages/shared/src/*
+    //     Use for: shared DTOs, constants, utility types consumed by both the
+    //     gateway and the expenses-service (single source of truth).
+    //     Example: import { CreateExpenseDto } from '@shared/expenses/dto'
+    //
+    //   @app/*     →  src/*
+    //     Use for: anything inside this app's own src directory.
+    //     Example: import { AuthGuard } from '@app/auth/guards/auth.guard'
+    //
+    // Note: tsconfig-paths (registered at runtime) makes these aliases work in
+    // ts-node-dev and in the compiled `node dist/main.js` process.
     "paths": {
       "@shared/*": ["../../packages/shared/src/*"],
       "@app/*": ["src/*"]
     }
   },
+
+  // Only compile files inside the src directory of this app.
   "include": ["src/**/*"],
+
+  // Never compile third-party packages or previously built output.
   "exclude": ["node_modules", "dist"]
 }

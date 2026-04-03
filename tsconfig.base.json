@@ -1,27 +1,116 @@
 {
+  // ─────────────────────────────────────────────────────────────────────────────
+  // BASE TSCONFIG — shared across all apps and packages in the monorepo.
+  // Each app/package extends this file and can override individual options.
+  // ─────────────────────────────────────────────────────────────────────────────
   "compilerOptions": {
+
+    // ── Output target ──────────────────────────────────────────────────────────
+
+    // Compile TypeScript down to ES2022 JavaScript.
+    // ES2022 supports top-level await, private class fields (#x), Array.at(), etc.
+    // Node >=18 understands ES2022 natively, so no extra down-levelling is needed.
     "target": "ES2022",
+
+    // Emit files using the CommonJS module format (require/module.exports).
+    // Node.js uses CommonJS by default, and NestJS is built around it.
     "module": "CommonJS",
+
+    // Use Node.js-style module resolution: looks in node_modules, respects
+    // package.json "main" field, walks up the directory tree, etc.
     "moduleResolution": "node",
+
+    // Include type definitions for ES2022 built-in APIs (Promise, Map, Set,
+    // structuredClone, Error.cause, …).  Matches the "target" above.
     "lib": ["ES2022"],
+
+    // ── Strict type-checking ───────────────────────────────────────────────────
+
+    // Master switch that enables the full suite of strict checks below.
+    // Setting it to true is equivalent to turning on every "strict*" flag.
     "strict": true,
+
+    // Disallow variables / parameters whose type is implicitly inferred as `any`.
+    // Forces you to be explicit, catching many type-safety bugs at compile time.
     "noImplicitAny": true,
+
+    // Make `null` and `undefined` their own distinct types.
+    // Without this, you can pass `null` where a string is expected — a common bug.
     "strictNullChecks": true,
+
+    // When reading from an array or index signature (obj[key]), TypeScript adds
+    // `| undefined` to the result type, reminding you to handle the "not found" case.
     "noUncheckedIndexedAccess": true,
+
+    // Class properties must be initialised in the constructor (or have a definite
+    // assignment assertion `!`).  Prevents "property used before assignment" bugs.
     "strictPropertyInitialization": true,
+
+    // Every code path in a non-void function must explicitly return a value.
+    // Catches functions that silently return `undefined` in some branches.
     "noImplicitReturns": true,
+
+    // Prevents accidental fall-through between `switch` cases that have statements.
+    // You must add a `break`, `return`, or `throw` at the end of each case.
     "noFallthroughCasesInSwitch": true,
+
+    // A method that overrides a parent-class method must be annotated with
+    // `override`.  Catches typos and refactoring accidents in class hierarchies.
     "noImplicitOverride": true,
+
+    // When false (the current setting), assigning `undefined` to an optional
+    // property (e.g. `obj.foo = undefined`) is allowed even when the property
+    // type is just `string | undefined` and not `string`.
+    // Set to true only if you want to strictly distinguish "absent" from "undefined".
     "exactOptionalPropertyTypes": false,
+
+    // ── Interop & imports ──────────────────────────────────────────────────────
+
+    // Allows `import express from 'express'` even though Express exports via
+    // CommonJS (`module.exports = …`).  Without this you'd need `import * as express`.
     "esModuleInterop": true,
+
+    // Companion to esModuleInterop: lets you write `import X from 'module'` for
+    // modules that don't declare a default export in their type definitions.
     "allowSyntheticDefaultImports": true,
+
+    // ── NestJS decorator support ───────────────────────────────────────────────
+
+    // Enable the TC39 Stage 2 decorators proposal used by NestJS (@Module,
+    // @Controller, @Injectable, etc.).  Without this the decorators are syntax errors.
     "experimentalDecorators": true,
+
+    // Emit type metadata alongside decorators so that NestJS's DI container can
+    // read constructor parameter types at runtime via `reflect-metadata`.
+    // Required for constructor-based dependency injection to work.
     "emitDecoratorMetadata": true,
+
+    // ── Build quality-of-life ──────────────────────────────────────────────────
+
+    // Skip type-checking of third-party `.d.ts` declaration files (node_modules).
+    // Dramatically speeds up compilation; type errors in libraries are their problem.
     "skipLibCheck": true,
+
+    // Treat file-system paths as case-sensitive even on macOS/Windows.
+    // Prevents "works on my machine" bugs when deploying to a Linux server.
     "forceConsistentCasingInFileNames": true,
+
+    // Allow `import data from './data.json'` — TypeScript will infer the shape
+    // of the JSON object, giving you full type-safety on config/fixture files.
     "resolveJsonModule": true,
+
+    // Emit a `.js.map` file next to every compiled `.js` file.
+    // Debuggers (VS Code, Chrome DevTools) use these to show the original TS source.
     "sourceMap": true,
+
+    // Do NOT cache incremental build information to disk (no `.tsbuildinfo` files).
+    // Avoids rare stale-cache bugs during development; set to true to speed up CI.
     "incremental": false
   },
+
+  // Files/patterns that TypeScript should never compile.
+  // node_modules  — third-party code; already typed via .d.ts files.
+  // dist          — previously compiled output; recompiling it would create duplicates.
+  // *.spec / *.test — test files are excluded from the production build.
   "exclude": ["node_modules", "dist", "**/*.spec.ts", "**/*.test.ts"]
 }

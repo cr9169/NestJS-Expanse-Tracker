@@ -1,18 +1,18 @@
 {
+  "//": [
+    "shared — internal library package consumed by both apps in this monorepo.",
+    "Contains DTOs, validation schemas, interfaces, and constants that must stay",
+    "in sync between the gateway (HTTP layer) and the expenses-service (business logic).",
+    "Has no runtime entry point — files are imported directly via the @shared/* path alias.",
+    "Never imported by its package name (@app/shared); always via the alias."
+  ],
+
   "name": "@app/shared",
   "version": "1.0.0",
+
+  "// private": "Not published to npm; consumed only within this monorepo workspace.",
   "private": true,
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "build:watch": "tsc -p tsconfig.json --watch"
-  },
-  "peerDependencies": {
-    "class-transformer": ">=0.5.0",
-    "class-validator": ">=0.14.0",
-    "@nestjs/swagger": ">=7.0.0"
-  },
+
   "devDependencies": {
     "@nestjs/swagger": "^7.3.0",
     "class-transformer": "^0.5.1",
