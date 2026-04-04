@@ -9,12 +9,7 @@
     // The `start` script in package.json runs `node dist/main.js`.
     "outDir": "./dist",
 
-    // Tell TypeScript to treat multiple physical directories as a single virtual
-    // root when resolving imports.  This is what lets the expenses-service import
-    // files from `packages/shared/src` without copying them into this app's tree.
-    //   ./src                    — the app's own source files
-    //   ../../packages/shared/src — shared DTOs, interfaces, and utilities
-    "rootDirs": ["./src", "../../packages/shared/src"],
+    "rootDir": "./src",
 
     // The anchor directory for resolving bare path aliases defined in "paths" below.
     // "." means "relative to the location of this tsconfig.json file".
@@ -22,18 +17,8 @@
 
     // Short-hand import aliases so you don't have to write long relative paths.
     //
-    //   @shared/*  →  ../../packages/shared/src/*
-    //     Use for: shared DTOs, constants, utility types, etc.
-    //     Example: import { CreateExpenseDto } from '@shared/expenses/dto'
-    //
-    //   @app/*     →  src/*
-    //     Use for: anything inside this app's own src directory.
-    //     Example: import { ExpensesService } from '@app/expenses/expenses.service'
-    //
-    // Note: tsconfig-paths (registered at runtime) makes these aliases work in
-    // ts-node-dev and in the compiled `node dist/main.js` process.
     "paths": {
-      "@shared/*": ["../../packages/shared/src/*"],
+      "@shared/*": ["../../packages/shared/dist/*"],
       "@app/*": ["src/*"]
     }
   },

@@ -25,7 +25,10 @@ COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
 COPY --from=builder /app/apps/budget-service/dist ./apps/budget-service/dist
 COPY --from=builder /app/apps/budget-service/package.json ./apps/budget-service/
+COPY --from=builder /app/apps/budget-service/tsconfig.json ./apps/budget-service/
+COPY --from=builder /app/tsconfig.base.json ./
 COPY --from=builder /app/package.json ./
+COPY --from=builder /app/package-lock.json ./
 
 RUN npm ci --omit=dev --workspaces --if-present
 
@@ -33,4 +36,5 @@ USER node
 
 EXPOSE 3002
 
-CMD ["node", "apps/budget-service/dist/main.js"]
+WORKDIR /app/apps/budget-service
+CMD ["node", "-r", "tsconfig-paths/register", "dist/main.js"]

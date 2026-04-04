@@ -25,7 +25,10 @@ COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
 COPY --from=builder /app/apps/analytics-service/dist ./apps/analytics-service/dist
 COPY --from=builder /app/apps/analytics-service/package.json ./apps/analytics-service/
+COPY --from=builder /app/apps/analytics-service/tsconfig.json ./apps/analytics-service/
+COPY --from=builder /app/tsconfig.base.json ./
 COPY --from=builder /app/package.json ./
+COPY --from=builder /app/package-lock.json ./
 
 RUN npm ci --omit=dev --workspaces --if-present
 
@@ -33,4 +36,5 @@ USER node
 
 EXPOSE 3003
 
-CMD ["node", "apps/analytics-service/dist/main.js"]
+WORKDIR /app/apps/analytics-service
+CMD ["node", "-r", "tsconfig-paths/register", "dist/main.js"]

@@ -13,6 +13,13 @@
   "// private": "Not published to npm; consumed only within this monorepo workspace.",
   "private": true,
 
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+
   "devDependencies": {
     "@nestjs/swagger": "^7.3.0",
     "class-transformer": "^0.5.1",

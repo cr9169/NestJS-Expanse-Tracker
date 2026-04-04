@@ -25,7 +25,10 @@ COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
 COPY --from=builder /app/apps/notification-service/dist ./apps/notification-service/dist
 COPY --from=builder /app/apps/notification-service/package.json ./apps/notification-service/
+COPY --from=builder /app/apps/notification-service/tsconfig.json ./apps/notification-service/
+COPY --from=builder /app/tsconfig.base.json ./
 COPY --from=builder /app/package.json ./
+COPY --from=builder /app/package-lock.json ./
 
 RUN npm ci --omit=dev --workspaces --if-present
 
@@ -33,4 +36,5 @@ USER node
 
 EXPOSE 3004
 
-CMD ["node", "apps/notification-service/dist/main.js"]
+WORKDIR /app/apps/notification-service
+CMD ["node", "-r", "tsconfig-paths/register", "dist/main.js"]
