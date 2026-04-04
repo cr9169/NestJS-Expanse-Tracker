@@ -10,6 +10,13 @@ A full-featured expense tracking platform built with **NestJS**, demonstrating m
 - [Transport Strategy](#transport-strategy)
 - [Service Descriptions](#service-descriptions)
 - [Communication Flow Graph](#communication-flow-graph)
+  - [How to read these diagrams](#how-to-read-these-diagrams)
+  - [Synchronous flows](#synchronous-flows)
+  - [Flow 1: Expense created](#flow-1-expense-created)
+  - [Flow 2: Expense updated](#flow-2-expense-updated)
+  - [Flow 3: Expense deleted](#flow-3-expense-deleted)
+  - [Flow 4: Budget threshold crossed](#flow-4-budget-threshold-crossed)
+  - [Full event chain example](#full-event-chain-example)
 - [API Endpoints](#api-endpoints)
 - [Event Flows](#event-flows)
 - [Data Models](#data-models)
@@ -24,70 +31,49 @@ A full-featured expense tracking platform built with **NestJS**, demonstrating m
 
 ## Architecture Overview
 
+Synchronous calls use **TCP** from the gateway to each microservice. **RabbitMQ** and **Kafka** carry async messages; exact pattern and queue names are in [Event Flows](#event-flows).
+
+```mermaid
+flowchart TB
+  Client["🌐 HTTP Clients"]
+
+  subgraph gateway ["Gateway :3000"]
+    GW["JWT Auth · Rate Limiting · Validation · Swagger"]
+  end
+
+  subgraph services ["Microservices"]
+    EXP["expenses-service :3001\nAuth · CRUD · Event Publisher"]
+    BUD["budget-service :3002\nBudget CRUD · Spending Tracker"]
+    NOT["notification-service :3004\nNotification CRUD · Alert Consumer"]
+    ANA["analytics-service :3003\nKafka Consumer · Materialized Views"]
+  end
+
+  subgraph brokers ["Message Brokers"]
+    RMQ[("RabbitMQ\nReliable delivery · DLQ · Durable queues")]
+    KFK[("Kafka\nOrdered log · Replay from offset 0")]
+  end
+
+  %% Synchronous — TCP request/response
+  Client -->|HTTP| GW
+  GW -->|TCP| EXP
+  GW -->|TCP| BUD
+  GW -->|TCP| NOT
+  GW -->|TCP| ANA
+
+  %% Async — RabbitMQ (side effects)
+  EXP -->|"expense.created\nexpense.updated\nexpense.deleted"| RMQ
+  EXP -->|"expense.large_amount"| RMQ
+  RMQ -->|expense events| BUD
+  RMQ -->|large expense alert| NOT
+  BUD -->|"budget.threshold.warning\nbudget.threshold.exceeded"| RMQ
+  RMQ -->|threshold alerts| NOT
+
+  %% Async — Kafka (analytics event log)
+  EXP -->|"expense.lifecycle"| KFK
+  KFK -->|ordered events| ANA
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              CLIENTS (HTTP)                                │
-└──────────────────────────────────┬──────────────────────────────────────────┘
-                                   │
-                                   ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                        GATEWAY  (HTTP :3000)                               │
-│                                                                             │
-│  JWT Auth Guard ─ Rate Limiting ─ Validation Pipe ─ Swagger UI             │
-│                                                                             │
-│  ┌────────────┐ ┌────────────┐ ┌────────────────┐ ┌─────────────────────┐  │
-│  │   Auth     │ │  Expenses  │ │    Budgets     │ │   Notifications     │  │
-│  │ Controller │ │ Controller │ │   Controller   │ │    Controller       │  │
-│  └─────┬──────┘ └─────┬──────┘ └───────┬────────┘ └──────────┬──────────┘  │
-│        │              │                │                     │              │
-│  ┌─────┴──────────────┴────────────────┴─────────────────────┴───────────┐  │
-│  │                         TCP ClientProxy                               │  │
-│  └───┬────────────┬────────────────┬─────────────────────┬───────────────┘  │
-│      │            │                │                     │              │   │
-│  ┌───┴──────┐ ┌───┴──────────┐ ┌──┴──────────────┐ ┌────┴────────────┐│   │
-│  │Analytics │ │              │ │                  │ │                 ││   │
-│  │Controller│ │              │ │                  │ │                 ││   │
-│  └────┬─────┘ │              │ │                  │ │                 ││   │
-│       │       │              │ │                  │ │                 ││   │
-└───────┼───────┼──────────────┼─┼──────────────────┼─┼─────────────────┼┘   │
-        │       │              │ │                  │ │                 │     │
-   TCP  │  TCP  │         TCP  │ │             TCP  │ │            TCP  │     │
-        │       │              │ │                  │ │                 │     │
-        ▼       ▼              ▼ │                  ▼ │                 ▼     │
-┌────────────┐ ┌────────────────┐│  ┌────────────────┐│  ┌──────────────────┐│
-│ analytics  │ │   expenses     ││  │    budget       ││  │  notification    ││
-│  service   │ │   service      ││  │    service      ││  │    service       ││
-│ (TCP:3003) │ │  (TCP:3001)    ││  │  (TCP:3002)     ││  │  (TCP:3004)      ││
-│            │ │                ││  │                  ││  │                  ││
-│ Kafka      │ │ Auth + CRUD    ││  │ Budget CRUD     ││  │ Notification CRUD││
-│ Consumer   │ │                ││  │ Spending Tracker ││  │                  ││
-│            │ │ Event Publisher ││  │ Threshold Alerts ││  │ Alert Consumer   ││
-└──────▲─────┘ └──┬─────┬───────┘│  └──▲──────┬───────┘│  └──▲───────────────┘│
-       │          │     │        │     │      │        │     │                │
-       │   Kafka  │     │RabbitMQ│     │      │RabbitMQ│     │                │
-       └──────────┘     │        │     │      │        │     │                │
-                        │        │     │      │        │     │                │
-                        ▼        │     │      ▼        │     │                │
-              ┌──────────────────┴─────┘  ┌───────────┴─────┘                │
-              │      RabbitMQ             │                                   │
-              │                           │                                   │
-              │  expense.created ─────────┼──► budget-service                │
-              │  expense.updated ─────────┼──► budget-service                │
-              │  expense.deleted ─────────┼──► budget-service                │
-              │  expense.large_amount ────┼──────────────────► notification  │
-              │                           │                                   │
-              │  budget.threshold.warning ─┼─────────────────► notification  │
-              │  budget.threshold.exceeded ┼─────────────────► notification  │
-              └───────────────────────────┘                                   │
-                                                                              │
-              ┌────────────────────────────┐                                  │
-              │        Kafka               │                                  │
-              │                            │                                  │
-              │  expense.lifecycle ─────────────► analytics-service           │
-              │  (ordered event log        │                                  │
-              │   with replay support)     │                                  │
-              └────────────────────────────┘                                  │
-```
+
+
 
 ---
 
@@ -95,11 +81,13 @@ A full-featured expense tracking platform built with **NestJS**, demonstrating m
 
 Each transport is chosen for a specific architectural reason — not just to demonstrate variety.
 
-| Transport | Where Used | Why |
-|-----------|-----------|-----|
-| **TCP** | Gateway ↔ all microservices | Synchronous request/response. The gateway needs immediate answers to serve HTTP clients. TCP is NestJS's lightest RPC transport — no broker overhead, minimal latency. |
-| **RabbitMQ** | expenses-service → budget-service, notification-service | Reliable async work queues. Budget checks and notifications are **side effects** that must not block expense creation. RabbitMQ provides guaranteed delivery (ack/nack), dead-letter queues for failed messages, and durable queues that survive broker restarts. |
-| **Kafka** | expenses-service → analytics-service | Ordered event log with replay. Analytics needs the **complete history** of expense events to build materialized views. Kafka retains events indefinitely — if analytics-service crashes or a new consumer joins, it can replay from offset 0 to rebuild its state. Multiple consumers read independently without affecting each other. |
+
+| Transport    | Where Used                                              | Why                                                                                                                                                                                                                                                                                                                                    |
+| ------------ | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **TCP**      | Gateway ↔ all microservices                             | Synchronous request/response. The gateway needs immediate answers to serve HTTP clients. TCP is NestJS's lightest RPC transport — no broker overhead, minimal latency.                                                                                                                                                                 |
+| **RabbitMQ** | expenses-service → budget-service, notification-service | Reliable async work queues. Budget checks and notifications are **side effects** that must not block expense creation. RabbitMQ provides guaranteed delivery (ack/nack), dead-letter queues for failed messages, and durable queues that survive broker restarts.                                                                      |
+| **Kafka**    | expenses-service → analytics-service                    | Ordered event log with replay. Analytics needs the **complete history** of expense events to build materialized views. Kafka retains events indefinitely — if analytics-service crashes or a new consumer joins, it can replay from offset 0 to rebuild its state. Multiple consumers read independently without affecting each other. |
+
 
 ---
 
@@ -110,6 +98,7 @@ Each transport is chosen for a specific architectural reason — not just to dem
 The **public-facing API** and the only service exposed to clients. All other services are internal.
 
 **Responsibilities:**
+
 - HTTP routing, Swagger documentation
 - JWT authentication (secure-by-default — all routes require auth unless `@Public()`)
 - Rate limiting (configurable TTL/limit per IP via `@nestjs/throttler`)
@@ -122,6 +111,7 @@ The **public-facing API** and the only service exposed to clients. All other ser
 The **core domain** — expense CRUD, user authentication, and the **event publisher** that drives the entire async ecosystem.
 
 **Responsibilities:**
+
 - User registration, login, JWT issuance + refresh token rotation
 - Expense CRUD with ownership enforcement
 - Expense summary aggregation (by category and date range)
@@ -133,6 +123,7 @@ The **core domain** — expense CRUD, user authentication, and the **event publi
 **Hybrid app** — listens on TCP for gateway queries and on RabbitMQ for expense events.
 
 **Responsibilities:**
+
 - Budget CRUD — users set monthly spending limits per category (or an overall limit)
 - Budget status — spent vs. limit for any month, with percentage and warning flags
 - **Async spending tracker**: consumes expense events from RabbitMQ, updates the `budget_spending` table
@@ -143,6 +134,7 @@ The **core domain** — expense CRUD, user authentication, and the **event publi
 **Hybrid app** — listens on TCP for gateway queries and on RabbitMQ for alert events.
 
 **Responsibilities:**
+
 - Consumes budget threshold alerts and large expense events from RabbitMQ
 - Creates human-readable notification records (title, message, type, metadata)
 - Serves paginated notification list, unread count, mark-as-read
@@ -153,6 +145,7 @@ The **core domain** — expense CRUD, user authentication, and the **event publi
 **Hybrid app** — listens on TCP for gateway queries and on Kafka for the expense event stream.
 
 **Responsibilities:**
+
 - Consumes the `expense.lifecycle` Kafka topic to build **materialized views** (`daily_spending`, `monthly_spending`)
 - Spending trends: monthly totals across 1–24 months with category breakdowns
 - Category breakdown: percentage distribution for a given month
@@ -162,135 +155,167 @@ The **core domain** — expense CRUD, user authentication, and the **event publi
 
 ## Communication Flow Graph
 
-### Synchronous Flows (TCP — Request/Response)
+### How to read these diagrams
 
-```
-Client ──HTTP──► Gateway ──TCP──► expenses-service
-                         ──TCP──► budget-service
-                         ──TCP──► notification-service
-                         ──TCP──► analytics-service
-```
+Diagrams here are **high-level**. The **authoritative** list of RabbitMQ patterns, queue names, and the Kafka topic is in [Event Flows](#event-flows).
 
-Every API call follows this pattern: the gateway receives an HTTP request, extracts the JWT payload, and forwards a TCP message to the responsible microservice. The microservice processes the request and returns the result synchronously.
+### Synchronous flows
 
-### Asynchronous Flows (RabbitMQ + Kafka — Fire-and-Forget)
+TCP **request/response**: every API call follows this pattern: the gateway receives an HTTP request, extracts the JWT payload, and forwards a TCP message to the responsible microservice. The microservice processes the request and returns the result synchronously.
 
-#### Flow 1: Expense Created
+```mermaid
+flowchart LR
+  C[Client]
+  G[Gateway]
+  E[expenses-service]
+  B[budget-service]
+  N[notification-service]
+  A[analytics-service]
 
-```
-                                                  ┌─────────────────────────┐
-                                                  │    budget-service       │
-                                             ┌───►│                         │
-                                             │    │ 1. Update budget_spending│
-                                             │    │ 2. Check thresholds     │
- ┌───────────┐    ┌──────────────────┐       │    │ 3. If 80%+ → emit alert│
- │  Client   │    │ expenses-service │       │    └──────────┬──────────────┘
- │           │    │                  │       │               │
- │ POST      │    │ 1. Save to DB   │  RabbitMQ             │ RabbitMQ
- │ /expenses ├───►│ 2. Emit events ─┼───────┤   (budget.threshold.*)
- │           │    │                  │       │               │
- └───────────┘    └───────┬──────────┘       │               ▼
-                          │                  │    ┌─────────────────────────┐
-                          │                  │    │ notification-service    │
-                          │                  └───►│                         │
-                          │             RabbitMQ  │ Create notification     │
-                          │       (expense.large_ │ (if large expense)     │
-                          │        amount)        └─────────────────────────┘
-                          │
-                          │  Kafka (expense.lifecycle)
-                          │
-                          ▼
-                 ┌─────────────────────────┐
-                 │   analytics-service     │
-                 │                         │
-                 │ Update daily_spending   │
-                 │ Update monthly_spending │
-                 │ (materialized views)    │
-                 └─────────────────────────┘
+  C -->|HTTP| G
+  G -->|TCP| E
+  G -->|TCP| B
+  G -->|TCP| N
+  G -->|TCP| A
 ```
 
-#### Flow 2: Expense Updated
 
-```
- expenses-service
-       │
-       ├── RabbitMQ (expense.updated) ──► budget-service
-       │                                     │
-       │                                     ├─ Compute delta (new - previous amount)
-       │                                     ├─ Update budget_spending by delta
-       │                                     └─ Re-check thresholds → may emit alerts
-       │
-       └── Kafka (expense.lifecycle) ───► analytics-service
-                                             │
-                                             ├─ Subtract old amount from views
-                                             └─ Add new amount to views
-```
 
-#### Flow 3: Expense Deleted
+### Asynchronous flows (RabbitMQ + Kafka)
 
-```
- expenses-service
-       │
-       ├── RabbitMQ (expense.deleted) ──► budget-service
-       │                                     │
-       │                                     ├─ Subtract amount from budget_spending
-       │                                     └─ Re-check thresholds
-       │
-       └── Kafka (expense.lifecycle) ───► analytics-service
-                                             │
-                                             └─ Subtract amount from materialized views
-```
+#### Flow 1: Expense created
 
-#### Flow 4: Budget Threshold Crossed
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant G as Gateway
+  participant E as expenses-service
+  participant R as RabbitMQ
+  participant K as Kafka
+  participant B as budget-service
+  participant N as notification-service
+  participant A as analytics-service
 
-```
- budget-service
-       │
-       │  (after processing an expense event)
-       │
-       ├─ Spending ≥ 80% of limit
-       │     │
-       │     └── RabbitMQ (budget.threshold.warning) ──► notification-service
-       │                                                       │
-       │                                                       └─ Create BUDGET_WARNING
-       │                                                          notification
-       │
-       └─ Spending ≥ 100% of limit
-             │
-             └── RabbitMQ (budget.threshold.exceeded) ─► notification-service
-                                                               │
-                                                               └─ Create BUDGET_EXCEEDED
-                                                                  notification
+  C->>G: POST /api/v1/expenses
+  G->>E: TCP create expense
+  E->>E: Save to SQLite
+  E->>R: Publish expense events
+  E->>K: Publish expense.lifecycle
+  E-->>G: Created expense
+  G-->>C: HTTP 201
+
+  par Budget consumer
+    R->>B: Consume expense.created, update spending, check thresholds
+  and Notification consumer
+    R->>N: Consume expense.large_amount when over threshold
+  and Analytics consumer
+    K->>A: Consume lifecycle, update materialized views
+  end
 ```
 
-### Full Event Chain Example
 
-Here is the complete chain triggered by a single `POST /api/v1/expenses` request:
 
+#### Flow 2: Expense updated
+
+```mermaid
+flowchart TD
+  E[expenses-service]
+  R[RabbitMQ]
+  K[Kafka]
+  B[budget-service]
+  A[analytics-service]
+
+  E -->|expense.updated| R
+  R --> B
+  B --> B1["Delta spending, re-check thresholds, may emit alerts"]
+  E -->|expense.lifecycle| K
+  K --> A
+  A --> A1["Subtract old amount, add new amount in views"]
 ```
- 1.  Client sends POST /api/v1/expenses { amountCents: 60000, category: "FOOD" }
- 2.  Gateway validates JWT, validates body, forwards via TCP to expenses-service
- 3.  expenses-service saves expense to SQLite
- 4.  expenses-service publishes:
-       → RabbitMQ: expense.created (to budget queue)
-       → RabbitMQ: expense.large_amount (amount > $500 threshold, to notification queue)
-       → Kafka: expense.lifecycle (to analytics topic)
- 5.  expenses-service returns the created expense to gateway → client (HTTP 201)
- 6.  [ASYNC] budget-service receives expense.created from RabbitMQ:
-       → Updates budget_spending: FOOD spent += 60000 cents
-       → Checks budgets: user has $800/month FOOD budget
-       → 60000 / 80000 = 75% — no threshold crossed
-       → ACKs the message
- 7.  [ASYNC] notification-service receives expense.large_amount from RabbitMQ:
-       → Creates notification: "Large expense: $600.00 on FOOD"
-       → ACKs the message
- 8.  [ASYNC] analytics-service receives expense.lifecycle from Kafka:
-       → Upserts daily_spending (user, 2026-04-04, FOOD) += 60000
-       → Upserts monthly_spending (user, 2026-04, FOOD) += 60000
-       → Kafka auto-commits consumer offset
- 9.  Later, client calls GET /api/v1/notifications → sees the large expense alert
-10.  Later, client calls GET /api/v1/analytics/trends?months=6 → sees updated totals
+
+
+
+#### Flow 3: Expense deleted
+
+```mermaid
+flowchart TD
+  E[expenses-service]
+  R[RabbitMQ]
+  K[Kafka]
+  B[budget-service]
+  A[analytics-service]
+
+  E -->|expense.deleted| R
+  R --> B
+  B --> B1["Subtract spending, re-check thresholds"]
+  E -->|expense.lifecycle| K
+  K --> A
+  A --> A1["Subtract amount from materialized views"]
 ```
+
+
+
+#### Flow 4: Budget threshold crossed
+
+After budget-service processes an expense event, it may publish threshold alerts (see [Event Flows](#event-flows) for pattern names).
+
+```mermaid
+flowchart TD
+  B[budget-service]
+  B --> Q{Percent of monthly limit?}
+  Q -->|"80% to less than 100%"| W[Publish warning via RabbitMQ]
+  Q -->|"100% or more"| X[Publish exceeded via RabbitMQ]
+  W --> N[notification-service]
+  X --> N
+  N --> N1["Create BUDGET_WARNING or BUDGET_EXCEEDED notification"]
+```
+
+
+
+### Full event chain example
+
+Complete chain triggered by a single `POST /api/v1/expenses` request:
+
+1. Client sends `POST /api/v1/expenses` with body (e.g. `amountCents: 60000`, `category: "FOOD"`).
+2. Gateway validates JWT and body, forwards via TCP to expenses-service.
+3. expenses-service saves the expense to SQLite.
+4. expenses-service publishes to RabbitMQ (budget + notification queues as applicable) and to Kafka `expense.lifecycle` (see [Event Flows](#event-flows)).
+5. expenses-service returns the created expense to the gateway → client (HTTP 201).
+6. **[ASYNC]** budget-service consumes `expense.created`: updates `budget_spending`, checks thresholds (example: 75% of limit → no alert), ACKs the message.
+7. **[ASYNC]** notification-service consumes `expense.large_amount` when over threshold: creates a large-expense notification, ACKs.
+8. **[ASYNC]** analytics-service consumes `expense.lifecycle`: upserts `daily_spending` / `monthly_spending`, commits Kafka offset.
+9. Later, `GET /api/v1/notifications` returns the large-expense alert (when applicable).
+10. Later, `GET /api/v1/analytics/trends?months=6` reflects updated totals.
+
+```mermaid
+sequenceDiagram
+  participant C as Client
+  participant G as Gateway
+  participant E as expenses-service
+  participant R as RabbitMQ
+  participant K as Kafka
+  participant B as budget-service
+  participant N as notification-service
+  participant A as analytics-service
+
+  C->>G: POST /api/v1/expenses
+  G->>E: TCP create
+  E->>E: SQLite persist
+  E->>R: expense + optional large_amount
+  E->>K: expense.lifecycle
+  E-->>G: 201 + body
+  G-->>C: HTTP 201
+
+  Note over R,A: After HTTP response completes
+  R->>B: expense.created
+  B->>B: Update spending, thresholds
+  R->>N: expense.large_amount if threshold
+  N->>N: Insert notification
+  K->>A: expense.lifecycle
+  A->>A: Upsert materialized views
+```
+
+
 
 ---
 
@@ -298,72 +323,88 @@ Here is the complete chain triggered by a single `POST /api/v1/expenses` request
 
 ### Auth (`/api/v1/auth`) — Public
 
-| Method | Path | Description | Body / Query |
-|--------|------|-------------|--------------|
-| POST | `/register` | Register new user | `{ email, password }` |
-| POST | `/login` | Login | `{ email, password }` |
-| POST | `/refresh` | Refresh access token | `{ refreshToken }` |
+
+| Method | Path        | Description          | Body / Query          |
+| ------ | ----------- | -------------------- | --------------------- |
+| POST   | `/register` | Register new user    | `{ email, password }` |
+| POST   | `/login`    | Login                | `{ email, password }` |
+| POST   | `/refresh`  | Refresh access token | `{ refreshToken }`    |
+
 
 ### Expenses (`/api/v1/expenses`) — Authenticated
 
-| Method | Path | Description | Body / Query |
-|--------|------|-------------|--------------|
-| POST | `/` | Create expense | `{ amountCents, currency, category, description, date }` |
-| GET | `/` | List expenses (paginated) | `?category&from&to&page&limit` |
-| GET | `/summary` | Category summary for date range | `?from&to` |
-| GET | `/:id` | Get single expense | — |
-| PATCH | `/:id` | Update expense | `{ amountCents?, currency?, category?, description?, date? }` |
-| DELETE | `/:id` | Delete expense | — |
+
+| Method | Path       | Description                     | Body / Query                                                  |
+| ------ | ---------- | ------------------------------- | ------------------------------------------------------------- |
+| POST   | `/`        | Create expense                  | `{ amountCents, currency, category, description, date }`      |
+| GET    | `/`        | List expenses (paginated)       | `?category&from&to&page&limit`                                |
+| GET    | `/summary` | Category summary for date range | `?from&to`                                                    |
+| GET    | `/:id`     | Get single expense              | —                                                             |
+| PATCH  | `/:id`     | Update expense                  | `{ amountCents?, currency?, category?, description?, date? }` |
+| DELETE | `/:id`     | Delete expense                  | —                                                             |
+
 
 ### Budgets (`/api/v1/budgets`) — Authenticated
 
-| Method | Path | Description | Body / Query |
-|--------|------|-------------|--------------|
-| POST | `/` | Create budget | `{ category?, monthlyLimitCents, currency? }` |
-| GET | `/` | List all budgets | — |
-| GET | `/status` | Spending vs. limit | `?month=YYYY-MM` |
-| PATCH | `/:id` | Update budget limit | `{ monthlyLimitCents }` |
-| DELETE | `/:id` | Delete budget | — |
+
+| Method | Path      | Description         | Body / Query                                  |
+| ------ | --------- | ------------------- | --------------------------------------------- |
+| POST   | `/`       | Create budget       | `{ category?, monthlyLimitCents, currency? }` |
+| GET    | `/`       | List all budgets    | —                                             |
+| GET    | `/status` | Spending vs. limit  | `?month=YYYY-MM`                              |
+| PATCH  | `/:id`    | Update budget limit | `{ monthlyLimitCents }`                       |
+| DELETE | `/:id`    | Delete budget       | —                                             |
+
 
 ### Notifications (`/api/v1/notifications`) — Authenticated
 
-| Method | Path | Description | Body / Query |
-|--------|------|-------------|--------------|
-| GET | `/` | List notifications (paginated) | `?page&limit&unreadOnly` |
-| GET | `/unread-count` | Unread badge count | — |
-| PATCH | `/read-all` | Mark all as read | — |
-| PATCH | `/:id/read` | Mark one as read | — |
+
+| Method | Path            | Description                    | Body / Query             |
+| ------ | --------------- | ------------------------------ | ------------------------ |
+| GET    | `/`             | List notifications (paginated) | `?page&limit&unreadOnly` |
+| GET    | `/unread-count` | Unread badge count             | —                        |
+| PATCH  | `/read-all`     | Mark all as read               | —                        |
+| PATCH  | `/:id/read`     | Mark one as read               | —                        |
+
 
 ### Analytics (`/api/v1/analytics`) — Authenticated
 
-| Method | Path | Description | Body / Query |
-|--------|------|-------------|--------------|
-| GET | `/trends` | Monthly spending time series | `?months=6` (1–24) |
-| GET | `/breakdown` | Category % breakdown | `?month=YYYY-MM` |
-| GET | `/anomalies` | Current month anomaly flags | — |
+
+| Method | Path         | Description                  | Body / Query       |
+| ------ | ------------ | ---------------------------- | ------------------ |
+| GET    | `/trends`    | Monthly spending time series | `?months=6` (1–24) |
+| GET    | `/breakdown` | Category % breakdown         | `?month=YYYY-MM`   |
+| GET    | `/anomalies` | Current month anomaly flags  | —                  |
+
 
 ---
 
 ## Event Flows
 
+**Source of truth** for RabbitMQ routing patterns, queue names, and the Kafka topic. Diagrams in [Architecture Overview](#architecture-overview) and [Communication Flow Graph](#communication-flow-graph) summarize the same wiring at a high level.
+
 ### RabbitMQ Patterns
 
-| Pattern | Publisher | Consumer(s) | Queue |
-|---------|-----------|-------------|-------|
-| `expense.created` | expenses-service | budget-service | `budget_expense_events` |
-| `expense.updated` | expenses-service | budget-service | `budget_expense_events` |
-| `expense.deleted` | expenses-service | budget-service | `budget_expense_events` |
-| `expense.large_amount` | expenses-service | notification-service | `notification_events` |
-| `budget.threshold.warning` | budget-service | notification-service | `notification_events` |
-| `budget.threshold.exceeded` | budget-service | notification-service | `notification_events` |
+
+| Pattern                     | Publisher        | Consumer(s)          | Queue                   |
+| --------------------------- | ---------------- | -------------------- | ----------------------- |
+| `expense.created`           | expenses-service | budget-service       | `budget_expense_events` |
+| `expense.updated`           | expenses-service | budget-service       | `budget_expense_events` |
+| `expense.deleted`           | expenses-service | budget-service       | `budget_expense_events` |
+| `expense.large_amount`      | expenses-service | notification-service | `notification_events`   |
+| `budget.threshold.warning`  | budget-service   | notification-service | `notification_events`   |
+| `budget.threshold.exceeded` | budget-service   | notification-service | `notification_events`   |
+
 
 All queues use **manual acknowledgment** (`noAck: false`). On processing failure, messages are NACKed without requeue (routed to DLQ if configured).
 
 ### Kafka Topics
 
-| Topic | Publisher | Consumer Group | Purpose |
-|-------|-----------|----------------|---------|
+
+| Topic               | Publisher        | Consumer Group               | Purpose                                                                       |
+| ------------------- | ---------------- | ---------------------------- | ----------------------------------------------------------------------------- |
 | `expense.lifecycle` | expenses-service | `analytics-service-consumer` | Ordered event log of all expense mutations. Retained indefinitely for replay. |
+
 
 ---
 
@@ -371,52 +412,60 @@ All queues use **manual acknowledgment** (`noAck: false`). On processing failure
 
 ### Expense Entity
 
-| Field | Type | Notes |
-|-------|------|-------|
-| id | UUID | Primary key |
-| userId | string | Foreign key to users |
-| amount | Money (value object) | Stores `amountCents` (integer) + `currency` |
-| category | ExpenseCategory enum | FOOD, TRANSPORT, HOUSING, HEALTH, OTHER |
-| description | string | 1–500 characters |
-| date | ISO 8601 string | Date of the expense |
-| createdAt | ISO 8601 string | — |
-| updatedAt | ISO 8601 string | — |
+
+| Field       | Type                 | Notes                                       |
+| ----------- | -------------------- | ------------------------------------------- |
+| id          | UUID                 | Primary key                                 |
+| userId      | string               | Foreign key to users                        |
+| amount      | Money (value object) | Stores `amountCents` (integer) + `currency` |
+| category    | ExpenseCategory enum | FOOD, TRANSPORT, HOUSING, HEALTH, OTHER     |
+| description | string               | 1–500 characters                            |
+| date        | ISO 8601 string      | Date of the expense                         |
+| createdAt   | ISO 8601 string      | —                                           |
+| updatedAt   | ISO 8601 string      | —                                           |
+
 
 ### User Entity
 
-| Field | Type | Notes |
-|-------|------|-------|
-| id | UUID | Primary key |
-| email | string | Unique, stored lowercase |
-| passwordHash | string | bcrypt |
-| refreshTokenHash | string \| null | bcrypt-hashed refresh token |
-| createdAt / updatedAt | ISO 8601 | — |
+
+| Field                 | Type          | Notes                       |
+| --------------------- | ------------- | --------------------------- |
+| id                    | UUID          | Primary key                 |
+| email                 | string        | Unique, stored lowercase    |
+| passwordHash          | string        | bcrypt                      |
+| refreshTokenHash      | string | null | bcrypt-hashed refresh token |
+| createdAt / updatedAt | ISO 8601      | —                           |
+
 
 ### Budget Entity
 
-| Field | Type | Notes |
-|-------|------|-------|
-| id | UUID | Primary key |
-| userId | string | — |
-| category | ExpenseCategory \| null | `null` = overall budget across all categories |
-| monthlyLimitCents | integer | Must be > 0 |
-| currency | string | Default `USD` |
-| createdAt / updatedAt | ISO 8601 | — |
+
+| Field                 | Type                   | Notes                                         |
+| --------------------- | ---------------------- | --------------------------------------------- |
+| id                    | UUID                   | Primary key                                   |
+| userId                | string                 | —                                             |
+| category              | ExpenseCategory | null | `null` = overall budget across all categories |
+| monthlyLimitCents     | integer                | Must be > 0                                   |
+| currency              | string                 | Default `USD`                                 |
+| createdAt / updatedAt | ISO 8601               | —                                             |
+
 
 Unique constraint: `(userId, category)` — one budget per category per user.
 
 ### Notification Entity
 
-| Field | Type | Notes |
-|-------|------|-------|
-| id | UUID | Primary key |
-| userId | string | — |
-| type | NotificationType enum | BUDGET_WARNING, BUDGET_EXCEEDED, LARGE_EXPENSE |
-| title | string | Human-readable title |
-| message | string | Detailed message |
-| metadata | JSON | Alert payload (category, amounts, period, etc.) |
-| read | boolean | Default `false` |
-| createdAt | ISO 8601 | — |
+
+| Field     | Type                  | Notes                                           |
+| --------- | --------------------- | ----------------------------------------------- |
+| id        | UUID                  | Primary key                                     |
+| userId    | string                | —                                               |
+| type      | NotificationType enum | BUDGET_WARNING, BUDGET_EXCEEDED, LARGE_EXPENSE  |
+| title     | string                | Human-readable title                            |
+| message   | string                | Detailed message                                |
+| metadata  | JSON                  | Alert payload (category, amounts, period, etc.) |
+| read      | boolean               | Default `false`                                 |
+| createdAt | ISO 8601              | —                                               |
+
 
 ### Value Objects
 
@@ -427,6 +476,7 @@ Unique constraint: `(userId, category)` — one budget per category per user.
 ### Event Types
 
 **ExpenseEvent** (published to RabbitMQ + Kafka):
+
 ```typescript
 {
   eventType: 'CREATED' | 'UPDATED' | 'DELETED';
@@ -442,6 +492,7 @@ Unique constraint: `(userId, category)` — one budget per category per user.
 ```
 
 **BudgetAlert** (published by budget-service to notification-service):
+
 ```typescript
 {
   userId: string;
@@ -591,55 +642,65 @@ All services use **Joi schema validation** at startup — the app crashes immedi
 
 ### Gateway
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GATEWAY_PORT` | 3000 | HTTP listen port |
-| `JWT_SECRET` | — (required, min 32 chars) | Access token signing key |
-| `JWT_EXPIRATION` | 15m | Access token lifetime (gateway verifies, not signs refresh) |
-| `TCP_HOST` / `TCP_PORT` | localhost / 3001 | expenses-service address |
-| `BUDGET_TCP_HOST` / `BUDGET_TCP_PORT` | localhost / 3002 | budget-service address |
-| `ANALYTICS_TCP_HOST` / `ANALYTICS_TCP_PORT` | localhost / 3003 | analytics-service address |
-| `NOTIFICATION_TCP_HOST` / `NOTIFICATION_TCP_PORT` | localhost / 3004 | notification-service address |
-| `THROTTLE_TTL` | 60000 | Rate limit window (ms) |
-| `THROTTLE_LIMIT` | 10 | Max requests per window |
+
+| Variable                                          | Default                    | Description                                                 |
+| ------------------------------------------------- | -------------------------- | ----------------------------------------------------------- |
+| `GATEWAY_PORT`                                    | 3000                       | HTTP listen port                                            |
+| `JWT_SECRET`                                      | — (required, min 32 chars) | Access token signing key                                    |
+| `JWT_EXPIRATION`                                  | 15m                        | Access token lifetime (gateway verifies, not signs refresh) |
+| `TCP_HOST` / `TCP_PORT`                           | localhost / 3001           | expenses-service address                                    |
+| `BUDGET_TCP_HOST` / `BUDGET_TCP_PORT`             | localhost / 3002           | budget-service address                                      |
+| `ANALYTICS_TCP_HOST` / `ANALYTICS_TCP_PORT`       | localhost / 3003           | analytics-service address                                   |
+| `NOTIFICATION_TCP_HOST` / `NOTIFICATION_TCP_PORT` | localhost / 3004           | notification-service address                                |
+| `THROTTLE_TTL`                                    | 60000                      | Rate limit window (ms)                                      |
+| `THROTTLE_LIMIT`                                  | 10                         | Max requests per window                                     |
+
 
 ### expenses-service
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TCP_PORT` | 3001 | TCP listen port |
-| `JWT_SECRET` | — (required) | Must match gateway |
-| `JWT_REFRESH_SECRET` | — (required) | Refresh token signing key |
-| `JWT_EXPIRATION` | 15m | Access token lifetime |
-| `JWT_REFRESH_EXPIRATION` | 7d | Refresh token lifetime |
-| `SQLITE_PATH` | /data/expenses.db | Database file path |
-| `RABBITMQ_URL` | amqp://localhost:5672 | RabbitMQ connection |
-| `KAFKA_BROKER` | localhost:9092 | Kafka broker address |
-| `LARGE_EXPENSE_THRESHOLD_CENTS` | 50000 | $500 — triggers large expense event |
+
+| Variable                        | Default               | Description                         |
+| ------------------------------- | --------------------- | ----------------------------------- |
+| `TCP_PORT`                      | 3001                  | TCP listen port                     |
+| `JWT_SECRET`                    | — (required)          | Must match gateway                  |
+| `JWT_REFRESH_SECRET`            | — (required)          | Refresh token signing key           |
+| `JWT_EXPIRATION`                | 15m                   | Access token lifetime               |
+| `JWT_REFRESH_EXPIRATION`        | 7d                    | Refresh token lifetime              |
+| `SQLITE_PATH`                   | /data/expenses.db     | Database file path                  |
+| `RABBITMQ_URL`                  | amqp://localhost:5672 | RabbitMQ connection                 |
+| `KAFKA_BROKER`                  | localhost:9092        | Kafka broker address                |
+| `LARGE_EXPENSE_THRESHOLD_CENTS` | 50000                 | $500 — triggers large expense event |
+
 
 ### budget-service
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TCP_PORT` | 3002 | TCP listen port |
+
+| Variable       | Default               | Description         |
+| -------------- | --------------------- | ------------------- |
+| `TCP_PORT`     | 3002                  | TCP listen port     |
 | `RABBITMQ_URL` | amqp://localhost:5672 | RabbitMQ connection |
-| `SQLITE_PATH` | /data/budgets.db | Database file path |
+| `SQLITE_PATH`  | /data/budgets.db      | Database file path  |
+
 
 ### analytics-service
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TCP_PORT` | 3003 | TCP listen port |
-| `KAFKA_BROKER` | localhost:9092 | Kafka broker address |
-| `SQLITE_PATH` | /data/analytics.db | Database file path |
+
+| Variable       | Default            | Description          |
+| -------------- | ------------------ | -------------------- |
+| `TCP_PORT`     | 3003               | TCP listen port      |
+| `KAFKA_BROKER` | localhost:9092     | Kafka broker address |
+| `SQLITE_PATH`  | /data/analytics.db | Database file path   |
+
 
 ### notification-service
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `TCP_PORT` | 3004 | TCP listen port |
-| `RABBITMQ_URL` | amqp://localhost:5672 | RabbitMQ connection |
-| `SQLITE_PATH` | /data/notifications.db | Database file path |
+
+| Variable       | Default                | Description         |
+| -------------- | ---------------------- | ------------------- |
+| `TCP_PORT`     | 3004                   | TCP listen port     |
+| `RABBITMQ_URL` | amqp://localhost:5672  | RabbitMQ connection |
+| `SQLITE_PATH`  | /data/notifications.db | Database file path  |
+
 
 ---
 
@@ -741,8 +802,11 @@ docker-compose down -v
 
 ### Useful URLs
 
-| URL | Service |
-|-----|---------|
-| `http://localhost:3000/api` | Swagger UI |
-| `http://localhost:3000/health` | Health check |
-| `http://localhost:15672` | RabbitMQ Management (guest/guest) |
+
+| URL                            | Service                           |
+| ------------------------------ | --------------------------------- |
+| `http://localhost:3000/api`    | Swagger UI                        |
+| `http://localhost:3000/health` | Health check                      |
+| `http://localhost:15672`       | RabbitMQ Management (guest/guest) |
+
+
