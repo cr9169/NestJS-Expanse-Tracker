@@ -7,7 +7,8 @@
       "Bash(npx tsc:*)",
       "Bash(grep -A 5 \"private.*handle\" apps/*/src/*/expenses.controller.ts)",
       "Bash(grep -r \"from ''''uuid''''\" apps/ --include=\"*.ts\")",
-      "Bash(grep -r \"from ''uuid''\" apps/ --include=\"*.ts\")"
+      "Bash(grep -r \"from ''uuid''\" apps/ --include=\"*.ts\")",
+      "Bash(find C:\\\\Users\\\\BarGabay\\\\repos\\\\NestJS-Expanse-Tracker\\\\apps\\\\budget-service:*)"
     ]
   }
 }

@@ -34,4 +34,28 @@ export class AppConfigService {
   get throttleLimit(): number {
     return this.config.get<number>('THROTTLE_LIMIT', 10);
   }
+
+  get budgetTcpHost(): string {
+    return this.config.get<string>('BUDGET_TCP_HOST', 'localhost');
+  }
+
+  get budgetTcpPort(): number {
+    return this.config.get<number>('BUDGET_TCP_PORT', 3002);
+  }
+
+  get analyticsTcpHost(): string {
+    return this.config.get<string>('ANALYTICS_TCP_HOST', 'localhost');
+  }
+
+  get analyticsTcpPort(): number {
+    return this.config.get<number>('ANALYTICS_TCP_PORT', 3003);
+  }
+
+  get notificationTcpHost(): string {
+    return this.config.get<string>('NOTIFICATION_TCP_HOST', 'localhost');
+  }
+
+  get notificationTcpPort(): number {
+    return this.config.get<number>('NOTIFICATION_TCP_PORT', 3004);
+  }
 }

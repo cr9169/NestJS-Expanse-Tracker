@@ -28,6 +28,14 @@ export class AppConfigService {
     return secret;
   }
 
+  get jwtExpiration(): string {
+    return this.config.get<string>('JWT_EXPIRATION', '15m');
+  }
+
+  get jwtRefreshExpiration(): string {
+    return this.config.get<string>('JWT_REFRESH_EXPIRATION', '7d');
+  }
+
   get sqlitePath(): string {
     return this.config.get<string>('SQLITE_PATH', '/data/expenses.db');
   }
@@ -38,5 +46,17 @@ export class AppConfigService {
 
   get isDevelopment(): boolean {
     return this.nodeEnv === 'development';
+  }
+
+  get rabbitmqUrl(): string {
+    return this.config.get<string>('RABBITMQ_URL', 'amqp://localhost:5672');
+  }
+
+  get kafkaBroker(): string {
+    return this.config.get<string>('KAFKA_BROKER', 'localhost:9092');
+  }
+
+  get largeExpenseThresholdCents(): number {
+    return this.config.get<number>('LARGE_EXPENSE_THRESHOLD_CENTS', 50000);
   }
 }

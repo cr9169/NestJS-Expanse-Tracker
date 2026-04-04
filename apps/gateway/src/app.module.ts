@@ -8,6 +8,9 @@ import { appConfigSchema } from './config/app.config';
 import { AppConfigModule } from './config/app-config.module';
 import { AuthModule } from './auth/auth.module';
 import { ExpensesModule } from './expenses/expenses.module';
+import { BudgetsModule } from './budgets/budgets.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { HealthController } from './health/health.controller';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter';
@@ -39,6 +42,9 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     AppConfigModule,
     AuthModule,
     ExpensesModule,
+    BudgetsModule,
+    NotificationsModule,
+    AnalyticsModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -15,3 +15,8 @@ export const LIST_EXPENSES_USE_CASE_TOKEN = Symbol('ListExpensesUseCase');
 export const UPDATE_EXPENSE_USE_CASE_TOKEN = Symbol('UpdateExpenseUseCase');
 export const DELETE_EXPENSE_USE_CASE_TOKEN = Symbol('DeleteExpenseUseCase');
 export const GET_EXPENSE_SUMMARY_USE_CASE_TOKEN = Symbol('GetExpenseSummaryUseCase');
+
+// ── Client proxy tokens for event publishing ──────────────────────────────────
+export const RABBITMQ_CLIENT_TOKEN = Symbol('RabbitmqClient');
+export const KAFKA_CLIENT_TOKEN = Symbol('KafkaClient');
+export const EXPENSE_EVENT_PUBLISHER_TOKEN = Symbol('ExpenseEventPublisher');

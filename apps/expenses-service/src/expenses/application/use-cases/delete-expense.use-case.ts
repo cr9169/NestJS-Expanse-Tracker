@@ -2,7 +2,8 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { NotFoundException } from '../../../common/exceptions/not-found.exception';
 import type { IExpenseRepository } from '../../domain/repositories/expense.repository.interface';
-import { EXPENSE_REPOSITORY_TOKEN } from '../../tokens';
+import type { ExpenseEventPublisher } from '../../infrastructure/expense-event.publisher';
+import { EXPENSE_EVENT_PUBLISHER_TOKEN, EXPENSE_REPOSITORY_TOKEN } from '../../tokens';
 
 export interface DeleteExpenseCommand {
   id: string;
@@ -14,6 +15,8 @@ export class DeleteExpenseUseCase {
   constructor(
     @Inject(EXPENSE_REPOSITORY_TOKEN)
     private readonly expenseRepository: IExpenseRepository,
+    @Inject(EXPENSE_EVENT_PUBLISHER_TOKEN)
+    private readonly eventPublisher: ExpenseEventPublisher,
   ) {}
 
   async execute(command: DeleteExpenseCommand): Promise<void> {
@@ -25,5 +28,7 @@ export class DeleteExpenseUseCase {
     }
 
     await this.expenseRepository.delete(command.id, command.userId);
+
+    this.eventPublisher.publishDeleted(existing);
   }
 }

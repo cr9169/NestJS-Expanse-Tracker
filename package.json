@@ -32,8 +32,8 @@
     "// build": "Compile every workspace that declares a 'build' script (tsc for each app).",
     "build": "npm run build --workspaces --if-present",
 
-    "// dev": "Start gateway and expenses-service in parallel, with hot-reload via ts-node-dev.",
-    "dev": "concurrently \"npm run dev --workspace=apps/gateway\" \"npm run dev --workspace=apps/expenses-service\"",
+    "// dev": "Start all services in parallel, with hot-reload via ts-node-dev.",
+    "dev": "concurrently \"npm run dev --workspace=apps/gateway\" \"npm run dev --workspace=apps/expenses-service\" \"npm run dev --workspace=apps/budget-service\" \"npm run dev --workspace=apps/notification-service\" \"npm run dev --workspace=apps/analytics-service\"",
 
     "// dev:gateway": "Start only the gateway (HTTP entry-point, Swagger UI on :3000).",
     "dev:gateway": "npm run dev --workspace=apps/gateway",

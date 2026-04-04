@@ -5,7 +5,8 @@ import type { UpdateExpenseDto } from '@shared/dtos/expense/update-expense.dto';
 import { NotFoundException } from '../../../common/exceptions/not-found.exception';
 import type { Expense } from '../../domain/entities/expense.entity';
 import type { IExpenseRepository } from '../../domain/repositories/expense.repository.interface';
-import { EXPENSE_REPOSITORY_TOKEN } from '../../tokens';
+import type { ExpenseEventPublisher } from '../../infrastructure/expense-event.publisher';
+import { EXPENSE_EVENT_PUBLISHER_TOKEN, EXPENSE_REPOSITORY_TOKEN } from '../../tokens';
 
 export interface UpdateExpenseCommand {
   id: string;
@@ -18,6 +19,8 @@ export class UpdateExpenseUseCase {
   constructor(
     @Inject(EXPENSE_REPOSITORY_TOKEN)
     private readonly expenseRepository: IExpenseRepository,
+    @Inject(EXPENSE_EVENT_PUBLISHER_TOKEN)
+    private readonly eventPublisher: ExpenseEventPublisher,
   ) {}
 
   async execute(command: UpdateExpenseCommand): Promise<Expense> {
@@ -35,6 +38,10 @@ export class UpdateExpenseUseCase {
       date: command.dto.date,
     });
 
-    return this.expenseRepository.update(updated);
+    const persisted = await this.expenseRepository.update(updated);
+
+    this.eventPublisher.publishUpdated(existing, persisted);
+
+    return persisted;
   }
 }

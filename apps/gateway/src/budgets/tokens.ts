@@ -1,0 +1,1 @@
+export const BUDGET_CLIENT_TOKEN = 'BUDGET_SERVICE';

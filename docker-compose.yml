@@ -2,13 +2,57 @@ version: '3.9'
 
 # ─────────────────────────────────────────────────────────────────────────────
 # ARCHITECTURE NOTE:
-# The expenses-service TCP port (3001) is intentionally NOT exposed to the host.
-# Only the gateway (3000) is public-facing. This enforces the microservice
-# boundary at the network level — clients can never bypass the gateway.
-# In Week 2+, additional services follow the same pattern.
+# Only the gateway (3000) is public-facing. All microservice TCP ports are
+# internal to the Docker network. RabbitMQ management UI (15672) and Kafka
+# are exposed to the host for development convenience only.
+#
+# Transport map:
+#   Gateway ──TCP──► expenses-service, budget-service, notification-service, analytics-service
+#   expenses-service ──RabbitMQ──► budget-service, notification-service
+#   expenses-service ──Kafka──► analytics-service
+#   budget-service ──RabbitMQ──► notification-service
 # ─────────────────────────────────────────────────────────────────────────────
 
 services:
+  # ── Infrastructure ────────────────────────────────────────────────────────
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - '5672:5672'
+      - '15672:15672' # Management UI: http://localhost:15672 (guest/guest)
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:9093'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      CLUSTER_ID: 'expense-tracker-cluster-01'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    healthcheck:
+      test: ['CMD', 'kafka-broker-api-versions', '--bootstrap-server', 'localhost:9092']
+      interval: 15s
+      timeout: 10s
+      retries: 5
+    networks:
+      - internal
+    restart: unless-stopped
+
+  # ── Application services ──────────────────────────────────────────────────
+
   gateway:
     build:
       context: ./apps/gateway
@@ -20,13 +64,24 @@ services:
       GATEWAY_PORT: 3000
       JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION: ${JWT_EXPIRATION:-15m}
-      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
       TCP_HOST: expenses-service
       TCP_PORT: 3001
+      BUDGET_TCP_HOST: budget-service
+      BUDGET_TCP_PORT: 3002
+      ANALYTICS_TCP_HOST: analytics-service
+      ANALYTICS_TCP_PORT: 3003
+      NOTIFICATION_TCP_HOST: notification-service
+      NOTIFICATION_TCP_PORT: 3004
       THROTTLE_TTL: ${THROTTLE_TTL:-60000}
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-10}
     depends_on:
       expenses-service:
+        condition: service_healthy
+      budget-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      analytics-service:
         condition: service_healthy
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:3000/health']
@@ -48,12 +103,93 @@ services:
       TCP_PORT: 3001
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-15m}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
       SQLITE_PATH: /data/expenses.db
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      KAFKA_BROKER: kafka:9092
+      LARGE_EXPENSE_THRESHOLD_CENTS: ${LARGE_EXPENSE_THRESHOLD_CENTS:-50000}
     volumes:
       - sqlite-data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
     healthcheck:
-      # TCP microservices don't have HTTP — we check if the process is alive
       test: ['CMD', 'node', '-e', "require('net').createConnection(3001, 'localhost').on('connect', () => process.exit(0)).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - internal
+    restart: unless-stopped
+
+  budget-service:
+    build:
+      context: ./apps/budget-service
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      TCP_PORT: 3002
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      SQLITE_PATH: /data/budgets.db
+    volumes:
+      - budget-data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', '-e', "require('net').createConnection(3002, 'localhost').on('connect', () => process.exit(0)).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - internal
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: ./apps/notification-service
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      TCP_PORT: 3004
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      SQLITE_PATH: /data/notifications.db
+    volumes:
+      - notification-data:/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', '-e', "require('net').createConnection(3004, 'localhost').on('connect', () => process.exit(0)).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - internal
+    restart: unless-stopped
+
+  analytics-service:
+    build:
+      context: ./apps/analytics-service
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      TCP_PORT: 3003
+      KAFKA_BROKER: kafka:9092
+      SQLITE_PATH: /data/analytics.db
+    volumes:
+      - analytics-data:/data
+    depends_on:
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', '-e', "require('net').createConnection(3003, 'localhost').on('connect', () => process.exit(0)).on('error', () => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -64,6 +200,12 @@ services:
 
 volumes:
   sqlite-data:
+    driver: local
+  budget-data:
+    driver: local
+  notification-data:
+    driver: local
+  analytics-data:
     driver: local
 
 networks:

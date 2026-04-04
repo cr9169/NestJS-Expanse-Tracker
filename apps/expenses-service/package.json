@@ -5,18 +5,14 @@
     "Owns the SQLite database (via better-sqlite3) and handles auth (JWT + bcrypt).",
     "NOT exposed to the internet directly — only the gateway talks to it."
   ],
-
   "name": "@app/expenses-service",
   "version": "1.0.0",
-
   "// private": "Not published to npm; consumed only within this monorepo workspace.",
   "private": true,
-
   "// scripts": "Lifecycle scripts for development, production, and linting.",
   "scripts": {
     "// build": "Compile TypeScript to JavaScript using this app's tsconfig.json. Output lands in dist/.",
     "build": "tsc -p tsconfig.json",
-
     "// dev": [
       "Start the service in watch mode using ts-node-dev.",
       "  --respawn         restart the process when a crash occurs",
@@ -24,18 +20,15 @@
       "  -r tsconfig-paths/register  register path aliases (@shared/*, @app/*) at runtime"
     ],
     "dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/main.ts",
-
     "// start": [
       "Run the pre-compiled app in production.",
       "-r tsconfig-paths/register is still needed because the compiled JS files",
       "still contain the alias strings that Node.js cannot resolve on its own."
     ],
     "start": "node -r tsconfig-paths/register dist/main.js",
-
     "// lint": "Lint only the src directory of this service.",
     "lint": "eslint \"{src}/**/*.ts\""
   },
-
   "dependencies": {
     "@nestjs/common": "^10.3.0",
     "@nestjs/config": "^3.2.0",
@@ -43,11 +36,13 @@
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/microservices": "^10.3.0",
     "@nestjs/passport": "^10.0.3",
+    "amqplib": "^1.0.3",
     "bcrypt": "^5.1.1",
     "better-sqlite3": "^12.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "joi": "^17.12.0",
+    "kafkajs": "^2.2.4",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.1",
@@ -55,7 +50,6 @@
     "tsconfig-paths": "^4.2.0",
     "uuid": "^9.0.0"
   },
-
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",
     "@types/better-sqlite3": "^7.6.0",

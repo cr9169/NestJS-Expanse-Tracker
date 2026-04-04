@@ -18,6 +18,24 @@ export const TCP_PATTERNS = {
   AUTH_REGISTER: 'auth.register',
   AUTH_LOGIN: 'auth.login',
   AUTH_REFRESH: 'auth.refresh',
+
+  // ── Budgets ────────────────────────────────────────────────────────────────
+  BUDGETS_CREATE: 'budgets.create',
+  BUDGETS_LIST: 'budgets.list',
+  BUDGETS_STATUS: 'budgets.status',
+  BUDGETS_UPDATE: 'budgets.update',
+  BUDGETS_DELETE: 'budgets.delete',
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+  NOTIFICATIONS_LIST: 'notifications.list',
+  NOTIFICATIONS_UNREAD_COUNT: 'notifications.unreadCount',
+  NOTIFICATIONS_MARK_READ: 'notifications.markRead',
+  NOTIFICATIONS_MARK_ALL_READ: 'notifications.markAllRead',
+
+  // ── Analytics ──────────────────────────────────────────────────────────────
+  ANALYTICS_TRENDS: 'analytics.trends',
+  ANALYTICS_BREAKDOWN: 'analytics.breakdown',
+  ANALYTICS_ANOMALIES: 'analytics.anomalies',
 } as const;
 
 export type TcpPattern = (typeof TCP_PATTERNS)[keyof typeof TCP_PATTERNS];

@@ -12,6 +12,11 @@ export const appConfigSchema = Joi.object({
   TCP_PORT: Joi.number().integer().min(1024).max(65535).default(3001),
   JWT_SECRET: Joi.string().min(32).required(),
   JWT_REFRESH_SECRET: Joi.string().min(32).required(),
+  JWT_EXPIRATION: Joi.string().default('15m'),
+  JWT_REFRESH_EXPIRATION: Joi.string().default('7d'),
   SQLITE_PATH: Joi.string().default('/data/expenses.db'),
+  RABBITMQ_URL: Joi.string().default('amqp://localhost:5672'),
+  KAFKA_BROKER: Joi.string().default('localhost:9092'),
+  LARGE_EXPENSE_THRESHOLD_CENTS: Joi.number().integer().min(1).default(50000),
   NODE_ENV: Joi.string().valid('development', 'production', 'test').default('development'),
 });
