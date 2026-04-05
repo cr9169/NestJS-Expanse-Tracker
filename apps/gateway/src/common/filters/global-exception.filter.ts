@@ -43,6 +43,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       statusCode = parsed.statusCode;
       code = parsed.code;
       message = parsed.message;
+    } else if (this.isRpcErrorObject(exception)) {
+      // NestJS TCP ClientProxy delivers microservice errors as plain objects,
+      // not wrapped in RpcException. Handle them the same way.
+      const parsed = this.parseRpcError(exception);
+      statusCode = parsed.statusCode;
+      code = parsed.code;
+      message = parsed.message;
     } else if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
       const res = exception.getResponse();
@@ -59,6 +66,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const errorResponse: ApiErrorResponse = { statusCode, error: code, message, code };
     response.status(statusCode).json(errorResponse);
+  }
+
+  private isRpcErrorObject(exception: unknown): boolean {
+    return (
+      typeof exception === 'object' &&
+      exception !== null &&
+      !(exception instanceof Error) &&
+      'statusCode' in exception &&
+      'message' in exception
+    );
   }
 
   private parseRpcError(error: unknown): { statusCode: number; code: string; message: string } {

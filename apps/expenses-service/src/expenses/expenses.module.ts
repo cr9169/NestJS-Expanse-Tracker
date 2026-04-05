@@ -24,6 +24,7 @@ import {
   KAFKA_CLIENT_TOKEN,
   LIST_EXPENSES_USE_CASE_TOKEN,
   RABBITMQ_CLIENT_TOKEN,
+  RABBITMQ_NOTIFICATION_CLIENT_TOKEN,
   UPDATE_EXPENSE_USE_CASE_TOKEN,
 } from './tokens';
 
@@ -32,7 +33,7 @@ import {
     DatabaseModule,
     AppConfigModule,
 
-    // ── RabbitMQ client (for budget + notification side effects) ──────────────
+    // ── RabbitMQ client for budget-service (expense lifecycle events) ─────────
     ClientsModule.registerAsync([
       {
         name: RABBITMQ_CLIENT_TOKEN,
@@ -42,7 +43,24 @@ import {
           transport: Transport.RMQ,
           options: {
             urls: [config.rabbitmqUrl],
-            queue: 'expense_events',
+            queue: 'budget_expense_events',
+            queueOptions: { durable: true },
+          },
+        }),
+      },
+    ]),
+
+    // ── RabbitMQ client for notification-service (large expense alerts) ──────
+    ClientsModule.registerAsync([
+      {
+        name: RABBITMQ_NOTIFICATION_CLIENT_TOKEN,
+        imports: [AppConfigModule],
+        inject: [AppConfigService],
+        useFactory: (config: AppConfigService) => ({
+          transport: Transport.RMQ,
+          options: {
+            urls: [config.rabbitmqUrl],
+            queue: 'notification_events',
             queueOptions: { durable: true },
           },
         }),

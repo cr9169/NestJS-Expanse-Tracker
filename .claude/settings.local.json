@@ -16,7 +16,12 @@
       "Bash(rm -rf apps/budget-service/dist)",
       "Bash(npm run:*)",
       "Bash(npx tsc-alias:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(xargs grep:*)",
+      "Bash(bash:*)",
+      "Bash(find apps/expenses-service -name \"handle-rpc*\" -exec cat {} \\\\;)",
+      "Bash(curl:*)",
+      "Bash(docker exec:*)"
     ]
   }
 }

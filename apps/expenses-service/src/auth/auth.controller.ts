@@ -2,8 +2,8 @@ import { Controller, Inject } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 
 import { TCP_PATTERNS } from '@shared/constants/tcp-patterns.constants';
-import type { RegisterDto } from '@shared/dtos/auth/register.dto';
-import type { LoginDto } from '@shared/dtos/auth/login.dto';
+import { RegisterDto } from '@shared/dtos/auth/register.dto';
+import { LoginDto } from '@shared/dtos/auth/login.dto';
 
 import { handleRpc } from '../common/handle-rpc';
 

@@ -38,7 +38,7 @@ export class SqliteBudgetRepository implements IBudgetRepository {
       'DELETE FROM budgets WHERE id = @id AND user_id = @userId',
     );
     this.stmtGetSpending = db.prepare(
-      'SELECT category, period, spent_cents FROM budget_spending WHERE user_id = @userId AND period = @period',
+      'SELECT category, period, spent_cents AS spentCents FROM budget_spending WHERE user_id = @userId AND period = @period',
     );
     this.stmtUpsertSpending = db.prepare(`
       INSERT INTO budget_spending (user_id, category, period, spent_cents)

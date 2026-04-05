@@ -55,6 +55,7 @@ export class NotificationsController {
   async markAllRead(@CurrentUser() user: JwtPayload): Promise<void> {
     await firstValueFrom(
       this.client.send<void>(TCP_PATTERNS.NOTIFICATIONS_MARK_ALL_READ, { userId: user.sub }),
+      { defaultValue: undefined },
     );
   }
 
@@ -66,6 +67,7 @@ export class NotificationsController {
   ): Promise<void> {
     await firstValueFrom(
       this.client.send<void>(TCP_PATTERNS.NOTIFICATIONS_MARK_READ, { id, userId: user.sub }),
+      { defaultValue: undefined },
     );
   }
 }

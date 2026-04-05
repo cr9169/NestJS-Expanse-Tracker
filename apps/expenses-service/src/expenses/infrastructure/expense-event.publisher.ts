@@ -6,7 +6,7 @@ import { RABBITMQ_PATTERNS } from '@shared/constants/rabbitmq-patterns.constants
 import type { ExpenseEvent } from '@shared/types/expense-event.type';
 
 import type { Expense } from '../domain/entities/expense.entity';
-import { KAFKA_CLIENT_TOKEN, RABBITMQ_CLIENT_TOKEN } from '../tokens';
+import { KAFKA_CLIENT_TOKEN, RABBITMQ_CLIENT_TOKEN, RABBITMQ_NOTIFICATION_CLIENT_TOKEN } from '../tokens';
 
 /**
  * Publishes expense lifecycle events to both RabbitMQ (for immediate side effects
@@ -22,11 +22,13 @@ export class ExpenseEventPublisher implements OnModuleInit {
 
   constructor(
     @Inject(RABBITMQ_CLIENT_TOKEN) private readonly rabbitClient: ClientProxy,
+    @Inject(RABBITMQ_NOTIFICATION_CLIENT_TOKEN) private readonly notificationClient: ClientProxy,
     @Inject(KAFKA_CLIENT_TOKEN) private readonly kafkaClient: ClientProxy,
   ) {}
 
   async onModuleInit(): Promise<void> {
     await this.rabbitClient.connect();
+    await this.notificationClient.connect();
     await this.kafkaClient.connect();
   }
 
@@ -71,7 +73,7 @@ export class ExpenseEventPublisher implements OnModuleInit {
 
   publishLargeExpense(expense: Expense): void {
     const event = this.toEvent('CREATED', expense);
-    this.rabbitClient.emit(RABBITMQ_PATTERNS.EXPENSE_LARGE_AMOUNT, event);
+    this.notificationClient.emit(RABBITMQ_PATTERNS.EXPENSE_LARGE_AMOUNT, event);
     this.logger.log(
       `Emitted LARGE_AMOUNT event for expense ${expense.id} (${expense.amount.amountCents} cents)`,
     );

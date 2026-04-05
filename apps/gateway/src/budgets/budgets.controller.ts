@@ -83,6 +83,7 @@ export class BudgetsController {
   ): Promise<void> {
     await firstValueFrom(
       this.client.send<void>(TCP_PATTERNS.BUDGETS_DELETE, { id, userId: user.sub }),
+      { defaultValue: undefined },
     );
   }
 }
