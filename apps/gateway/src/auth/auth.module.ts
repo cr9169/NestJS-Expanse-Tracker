@@ -7,7 +7,7 @@ import { AppConfigService } from '../config/app-config.service';
 
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './strategies/jwt.strategy';
-import { EXPENSES_SERVICE_TOKEN } from './tokens'; // used as the ClientProxy name
+import { AUTH_SERVICE_TOKEN } from './tokens';
 
 @Module({
   imports: [
@@ -21,16 +21,16 @@ import { EXPENSES_SERVICE_TOKEN } from './tokens'; // used as the ClientProxy na
       }),
     }),
 
-    // TCP client for communicating with expenses-service
+    // TCP client for communicating with auth-service
     ClientsModule.registerAsync([
       {
-        name: EXPENSES_SERVICE_TOKEN,
+        name: AUTH_SERVICE_TOKEN,
         inject: [AppConfigService],
         useFactory: (config: AppConfigService) => ({
           transport: Transport.TCP,
           options: {
-            host: config.tcpHost,
-            port: config.tcpPort,
+            host: config.authTcpHost,
+            port: config.authTcpPort,
           },
         }),
       },

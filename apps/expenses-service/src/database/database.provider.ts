@@ -25,15 +25,6 @@ const INIT_SQL = `
 PRAGMA journal_mode=WAL;
 PRAGMA foreign_keys=ON;
 
-CREATE TABLE IF NOT EXISTS users (
-  id                 TEXT    PRIMARY KEY,
-  email              TEXT    UNIQUE NOT NULL,
-  password_hash      TEXT    NOT NULL,
-  refresh_token_hash TEXT,
-  created_at         TEXT    NOT NULL,
-  updated_at         TEXT    NOT NULL
-);
-
 CREATE TABLE IF NOT EXISTS expenses (
   id           TEXT    PRIMARY KEY,
   user_id      TEXT    NOT NULL,
@@ -43,8 +34,7 @@ CREATE TABLE IF NOT EXISTS expenses (
   description  TEXT    NOT NULL,
   date         TEXT    NOT NULL,
   created_at   TEXT    NOT NULL,
-  updated_at   TEXT    NOT NULL,
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  updated_at   TEXT    NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_expenses_user_id       ON expenses(user_id);

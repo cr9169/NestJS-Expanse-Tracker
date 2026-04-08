@@ -27,6 +27,14 @@ export class AppConfigService {
     return this.config.get<number>('TCP_PORT', 3001);
   }
 
+  get authTcpHost(): string {
+    return this.config.get<string>('AUTH_TCP_HOST', 'localhost');
+  }
+
+  get authTcpPort(): number {
+    return this.config.get<number>('AUTH_TCP_PORT', 3005);
+  }
+
   get throttleTtl(): number {
     return this.config.get<number>('THROTTLE_TTL', 60000);
   }

@@ -6,6 +6,8 @@ export const appConfigSchema = Joi.object({
   JWT_EXPIRATION: Joi.string().default('15m'),
   TCP_HOST: Joi.string().default('localhost'),
   TCP_PORT: Joi.number().integer().default(3001),
+  AUTH_TCP_HOST: Joi.string().default('localhost'),
+  AUTH_TCP_PORT: Joi.number().integer().default(3005),
   BUDGET_TCP_HOST: Joi.string().default('localhost'),
   BUDGET_TCP_PORT: Joi.number().integer().default(3002),
   ANALYTICS_TCP_HOST: Joi.string().default('localhost'),

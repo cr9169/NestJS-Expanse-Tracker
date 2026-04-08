@@ -5,7 +5,7 @@ import { ConfigModule } from '@nestjs/config';
 import { appConfigSchema } from './config/app.config';
 import { AppConfigModule } from './config/app-config.module';
 import { DatabaseModule } from './database/database.module';
-import { ExpensesModule } from './expenses/expenses.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -16,7 +16,7 @@ import { ExpensesModule } from './expenses/expenses.module';
     }),
     AppConfigModule,
     DatabaseModule,
-    ExpensesModule,
+    AuthModule,
   ],
   providers: [
     {

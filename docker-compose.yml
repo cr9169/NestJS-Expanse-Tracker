@@ -5,7 +5,7 @@
 # are exposed to the host for development convenience only.
 #
 # Transport map:
-#   Gateway ──TCP──► expenses-service, budget-service, notification-service, analytics-service
+#   Gateway ──TCP──► auth-service, expenses-service, budget-service, notification-service, analytics-service
 #   expenses-service ──RabbitMQ──► budget-service, notification-service
 #   expenses-service ──Kafka──► analytics-service
 #   budget-service ──RabbitMQ──► notification-service
@@ -73,9 +73,13 @@ services:
       ANALYTICS_TCP_PORT: 3003
       NOTIFICATION_TCP_HOST: notification-service
       NOTIFICATION_TCP_PORT: 3004
+      AUTH_TCP_HOST: auth-service
+      AUTH_TCP_PORT: 3005
       THROTTLE_TTL: ${THROTTLE_TTL:-60000}
       THROTTLE_LIMIT: ${THROTTLE_LIMIT:-10}
     depends_on:
+      auth-service:
+        condition: service_healthy
       expenses-service:
         condition: service_healthy
       budget-service:
@@ -102,10 +106,6 @@ services:
     # No ports exposed — only reachable via internal Docker network
     environment:
       TCP_PORT: 3001
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      JWT_EXPIRATION: ${JWT_EXPIRATION:-15m}
-      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
       SQLITE_PATH: /data/expenses.db
       RABBITMQ_URL: amqp://rabbitmq:5672
       KAFKA_BROKER: kafka:29092
@@ -119,6 +119,31 @@ services:
         condition: service_healthy
     healthcheck:
       test: ['CMD', 'node', '-e', "require('net').createConnection(3001, 'localhost').on('connect', () => process.exit(0)).on('error', () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - internal
+    restart: unless-stopped
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: apps/auth-service/Dockerfile
+      target: production
+    # No ports exposed — only reachable via internal Docker network
+    environment:
+      TCP_PORT: 3005
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-15m}
+      JWT_REFRESH_EXPIRATION: ${JWT_REFRESH_EXPIRATION:-7d}
+      SQLITE_PATH: /data/auth.db
+    volumes:
+      - auth-data:/data
+    healthcheck:
+      test: ['CMD', 'node', '-e', "require('net').createConnection(3005, 'localhost').on('connect', () => process.exit(0)).on('error', () => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -201,6 +226,8 @@ services:
 
 volumes:
   sqlite-data:
+    driver: local
+  auth-data:
     driver: local
   budget-data:
     driver: local

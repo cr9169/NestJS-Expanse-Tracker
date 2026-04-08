@@ -1,8 +1,8 @@
 {
   "//": [
-    "expenses-service — NestJS microservice responsible for all business logic.",
+    "expenses-service — NestJS microservice responsible for expense management.",
     "Communicates with the gateway exclusively over TCP using NestJS MessagePatterns.",
-    "Owns the SQLite database (via better-sqlite3) and handles auth (JWT + bcrypt).",
+    "Owns the SQLite database (via better-sqlite3) for expense records.",
     "NOT exposed to the internet directly — only the gateway talks to it."
   ],
   "name": "@app/expenses-service",
@@ -33,30 +33,23 @@
     "@nestjs/common": "^10.3.0",
     "@nestjs/config": "^3.2.0",
     "@nestjs/core": "^10.3.0",
-    "@nestjs/jwt": "^10.2.0",
     "@nestjs/microservices": "^10.3.0",
-    "@nestjs/passport": "^10.0.3",
     "@nestjs/swagger": "^7.3.0",
     "amqp-connection-manager": "^5.0.0",
     "amqplib": "^1.0.3",
-    "bcrypt": "^5.1.1",
     "better-sqlite3": "^12.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "joi": "^17.12.0",
     "kafkajs": "^2.2.4",
-    "passport": "^0.7.0",
-    "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.1",
     "rxjs": "^7.8.1",
     "tsconfig-paths": "^4.2.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@types/bcrypt": "^5.0.2",
     "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^20.11.0",
-    "@types/passport-jwt": "^4.0.1",
     "@types/uuid": "^9.0.7",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.0"

@@ -1,1 +1,2 @@
-export { EXPENSES_SERVICE_TOKEN as EXPENSES_CLIENT_TOKEN } from '../auth/tokens';
+/** Injection token for the TCP ClientProxy connected to expenses-service */
+export const EXPENSES_CLIENT_TOKEN = 'EXPENSES_SERVICE';

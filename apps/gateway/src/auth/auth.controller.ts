@@ -25,7 +25,7 @@ import { TokenResponseDto } from '@shared/dtos/auth/token-response.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { ThrottlerBehindProxyGuard } from '../common/guards/throttler-behind-proxy.guard';
 
-import { EXPENSES_SERVICE_TOKEN } from './tokens';
+import { AUTH_SERVICE_TOKEN } from './tokens';
 
 /**
  * ARCHITECTURE NOTE:
@@ -38,7 +38,7 @@ import { EXPENSES_SERVICE_TOKEN } from './tokens';
 @Controller('api/v1/auth')
 export class AuthController {
   constructor(
-    @Inject(EXPENSES_SERVICE_TOKEN)
+    @Inject(AUTH_SERVICE_TOKEN)
     private readonly client: ClientProxy,
   ) {}
 
