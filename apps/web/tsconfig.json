@@ -1,0 +1,41 @@
+{
+  "//": [
+    "web — Vite SPA tsconfig.",
+    "Diverges from the backend base config because Vite/ESBuild don't need CommonJS",
+    "and React requires JSX support. We point @shared/* at packages/shared/src/* (not dist)",
+    "so Vite picks up TypeScript directly without requiring a shared build step."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "useDefineForClassFields": true,
+    "allowImportingTsExtensions": false,
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@shared/*": ["../../packages/shared/src/*"]
+    },
+
+    "types": ["vite/client", "node"]
+  },
+  "include": ["src", "vite.config.ts", "../../packages/shared/src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}

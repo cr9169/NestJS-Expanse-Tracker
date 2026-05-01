@@ -66,4 +66,15 @@ export class AppConfigService {
   get notificationTcpPort(): number {
     return this.config.get<number>('NOTIFICATION_TCP_PORT', 3004);
   }
+
+  get corsOrigins(): string[] {
+    const raw = this.config.get<string>(
+      'CORS_ORIGINS',
+      'http://localhost:5173,http://127.0.0.1:5173',
+    );
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
 }

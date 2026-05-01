@@ -2,6 +2,8 @@
 
 A full-featured expense tracking platform built with **NestJS**, demonstrating microservices architecture with **three distinct transport mechanisms** — each chosen for a genuine architectural reason.
 
+The system is composed of one HTTP gateway and five domain microservices: **auth-service**, **expenses-service**, **budget-service**, **notification-service**, and **analytics-service**.
+
 ---
 
 ## Table of Contents
@@ -42,7 +44,8 @@ flowchart TB
   end
 
   subgraph services ["Microservices"]
-    EXP["expenses-service :3001\nAuth · CRUD · Event Publisher"]
+    AUTH["auth-service :3005\nRegister · Login · Refresh · JWT Issuer"]
+    EXP["expenses-service :3001\nExpense CRUD · Event Publisher"]
     BUD["budget-service :3002\nBudget CRUD · Spending Tracker"]
     NOT["notification-service :3004\nNotification CRUD · Alert Consumer"]
     ANA["analytics-service :3003\nKafka Consumer · Materialized Views"]
@@ -55,6 +58,7 @@ flowchart TB
 
   %% Synchronous — TCP request/response
   Client -->|HTTP| GW
+  GW -->|TCP| AUTH
   GW -->|TCP| EXP
   GW -->|TCP| BUD
   GW -->|TCP| NOT
@@ -106,14 +110,24 @@ The **public-facing API** and the only service exposed to clients. All other ser
 - Response wrapping (consistent `{ data, meta? }` envelope via `TransformInterceptor`)
 - Proxies requests to microservices over TCP
 
-### expenses-service (TCP :3001)
+### auth-service (TCP :3005)
 
-The **core domain** — expense CRUD, user authentication, and the **event publisher** that drives the entire async ecosystem.
+Pure TCP microservice — owns **all user identity and JWT issuance**. Extracted from expenses-service so the expenses domain has no knowledge of authentication.
 
 **Responsibilities:**
 
-- User registration, login, JWT issuance + refresh token rotation
-- Expense CRUD with ownership enforcement
+- User registration, login, refresh token rotation
+- Issues access + refresh JWTs (signs with `JWT_SECRET` / `JWT_REFRESH_SECRET`)
+- Owns the `users` table (its own SQLite database — no other service reads it)
+- The gateway's `JwtStrategy` only **verifies** access tokens; it never signs them — auth-service is the only signer
+
+### expenses-service (TCP :3001)
+
+The **core domain** — expense CRUD and the **event publisher** that drives the entire async ecosystem. After the auth extraction, it has no knowledge of users or JWTs; it only sees `userId` strings forwarded by the gateway.
+
+**Responsibilities:**
+
+- Expense CRUD with ownership enforcement (matches by `userId` from the JWT)
 - Expense summary aggregation (by category and date range)
 - **Event emission**: publishes every expense mutation to both RabbitMQ (for immediate side effects) and Kafka (for the analytics event log)
 - Large expense detection: emits `expense.large_amount` when amount exceeds configurable threshold (default $500)
@@ -161,18 +175,20 @@ Diagrams here are **high-level**. The **authoritative** list of RabbitMQ pattern
 
 ### Synchronous flows
 
-TCP **request/response**: every API call follows this pattern: the gateway receives an HTTP request, extracts the JWT payload, and forwards a TCP message to the responsible microservice. The microservice processes the request and returns the result synchronously.
+TCP **request/response**: every API call follows this pattern: the gateway receives an HTTP request, extracts the JWT payload (or proxies straight through for public auth routes), and forwards a TCP message to the responsible microservice. The microservice processes the request and returns the result synchronously.
 
 ```mermaid
 flowchart LR
   C[Client]
   G[Gateway]
+  AU[auth-service]
   E[expenses-service]
   B[budget-service]
   N[notification-service]
   A[analytics-service]
 
   C -->|HTTP| G
+  G -->|TCP| AU
   G -->|TCP| E
   G -->|TCP| B
   G -->|TCP| N
@@ -510,21 +526,25 @@ Unique constraint: `(userId, category)` — one budget per category per user.
 
 Each service has its **own isolated SQLite database** — no shared DB, enforcing microservice boundaries.
 
-### expenses-service (`/data/expenses.db`)
+### auth-service (`/data/auth.db`)
 
 ```sql
 CREATE TABLE users (
-  id             TEXT PRIMARY KEY,
-  email          TEXT UNIQUE NOT NULL,
-  password_hash  TEXT NOT NULL,
+  id                 TEXT PRIMARY KEY,
+  email              TEXT UNIQUE NOT NULL,
+  password_hash      TEXT NOT NULL,
   refresh_token_hash TEXT,
-  created_at     TEXT NOT NULL,
-  updated_at     TEXT NOT NULL
+  created_at         TEXT NOT NULL,
+  updated_at         TEXT NOT NULL
 );
+```
 
+### expenses-service (`/data/expenses.db`)
+
+```sql
 CREATE TABLE expenses (
   id           TEXT PRIMARY KEY,
-  user_id      TEXT NOT NULL REFERENCES users(id),
+  user_id      TEXT NOT NULL,            -- soft reference; users live in auth-service
   amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
   currency     TEXT NOT NULL DEFAULT 'USD',
   category     TEXT NOT NULL,
@@ -614,7 +634,7 @@ Located at `packages/shared/`, this package contains code shared across all serv
 ```
 packages/shared/src/
 ├── constants/
-│   ├── tcp-patterns.constants.ts      # 17 TCP message patterns
+│   ├── tcp-patterns.constants.ts      # 21 TCP message patterns (3 auth + 6 expenses + 5 budgets + 4 notifications + 3 analytics)
 │   ├── rabbitmq-patterns.constants.ts # 6 RabbitMQ event patterns
 │   └── kafka-topics.constants.ts      # 1 Kafka topic
 ├── dtos/
@@ -643,17 +663,31 @@ All services use **Joi schema validation** at startup — the app crashes immedi
 ### Gateway
 
 
-| Variable                                          | Default                    | Description                                                 |
-| ------------------------------------------------- | -------------------------- | ----------------------------------------------------------- |
-| `GATEWAY_PORT`                                    | 3000                       | HTTP listen port                                            |
-| `JWT_SECRET`                                      | — (required, min 32 chars) | Access token signing key                                    |
-| `JWT_EXPIRATION`                                  | 15m                        | Access token lifetime (gateway verifies, not signs refresh) |
-| `TCP_HOST` / `TCP_PORT`                           | localhost / 3001           | expenses-service address                                    |
-| `BUDGET_TCP_HOST` / `BUDGET_TCP_PORT`             | localhost / 3002           | budget-service address                                      |
-| `ANALYTICS_TCP_HOST` / `ANALYTICS_TCP_PORT`       | localhost / 3003           | analytics-service address                                   |
-| `NOTIFICATION_TCP_HOST` / `NOTIFICATION_TCP_PORT` | localhost / 3004           | notification-service address                                |
-| `THROTTLE_TTL`                                    | 60000                      | Rate limit window (ms)                                      |
-| `THROTTLE_LIMIT`                                  | 10                         | Max requests per window                                     |
+| Variable                                          | Default                    | Description                                                  |
+| ------------------------------------------------- | -------------------------- | ------------------------------------------------------------ |
+| `GATEWAY_PORT`                                    | 3000                       | HTTP listen port                                             |
+| `JWT_SECRET`                                      | — (required, min 32 chars) | Access token verification key (must match auth-service)      |
+| `JWT_EXPIRATION`                                  | 15m                        | Access token lifetime (the gateway only verifies, never signs — auth-service is the only signer) |
+| `TCP_HOST` / `TCP_PORT`                           | localhost / 3001           | expenses-service address                                     |
+| `AUTH_TCP_HOST` / `AUTH_TCP_PORT`                 | localhost / 3005           | auth-service address                                         |
+| `BUDGET_TCP_HOST` / `BUDGET_TCP_PORT`             | localhost / 3002           | budget-service address                                       |
+| `ANALYTICS_TCP_HOST` / `ANALYTICS_TCP_PORT`       | localhost / 3003           | analytics-service address                                    |
+| `NOTIFICATION_TCP_HOST` / `NOTIFICATION_TCP_PORT` | localhost / 3004           | notification-service address                                 |
+| `THROTTLE_TTL`                                    | 60000                      | Rate limit window (ms)                                       |
+| `THROTTLE_LIMIT`                                  | 10                         | Max requests per window                                      |
+
+
+### auth-service
+
+
+| Variable                 | Default                    | Description                                              |
+| ------------------------ | -------------------------- | -------------------------------------------------------- |
+| `TCP_PORT`               | 3005                       | TCP listen port                                          |
+| `JWT_SECRET`             | — (required, min 32 chars) | Access token signing key (must match gateway)            |
+| `JWT_REFRESH_SECRET`     | — (required, min 32 chars) | Refresh token signing key (auth-service only — gateway never sees this) |
+| `JWT_EXPIRATION`         | 15m                        | Access token lifetime                                    |
+| `JWT_REFRESH_EXPIRATION` | 7d                         | Refresh token lifetime                                   |
+| `SQLITE_PATH`            | /data/auth.db              | Database file path                                       |
 
 
 ### expenses-service
@@ -662,10 +696,6 @@ All services use **Joi schema validation** at startup — the app crashes immedi
 | Variable                        | Default               | Description                         |
 | ------------------------------- | --------------------- | ----------------------------------- |
 | `TCP_PORT`                      | 3001                  | TCP listen port                     |
-| `JWT_SECRET`                    | — (required)          | Must match gateway                  |
-| `JWT_REFRESH_SECRET`            | — (required)          | Refresh token signing key           |
-| `JWT_EXPIRATION`                | 15m                   | Access token lifetime               |
-| `JWT_REFRESH_EXPIRATION`        | 7d                    | Refresh token lifetime              |
 | `SQLITE_PATH`                   | /data/expenses.db     | Database file path                  |
 | `RABBITMQ_URL`                  | amqp://localhost:5672 | RabbitMQ connection                 |
 | `KAFKA_BROKER`                  | localhost:9092        | Kafka broker address                |
@@ -708,19 +738,21 @@ All services use **Joi schema validation** at startup — the app crashes immedi
 
 ```yaml
 services:
-  rabbitmq          # 3-management image, ports 5672 + 15672 (UI: guest/guest)
-  kafka             # cp-kafka:7.5.0, KRaft mode (no Zookeeper), port 9092
-  gateway           # HTTP :3000 (only externally exposed port)
-  expenses-service  # TCP :3001 (internal), depends on RabbitMQ + Kafka
-  budget-service    # TCP :3002 (internal), depends on RabbitMQ
+  rabbitmq              # 3-management image, ports 5672 + 15672 (UI: guest/guest)
+  kafka                 # cp-kafka:7.5.0, KRaft mode (no Zookeeper), port 9092
+  gateway               # HTTP :3000 (only externally exposed port)
+  auth-service          # TCP :3005 (internal)
+  expenses-service      # TCP :3001 (internal), depends on RabbitMQ + Kafka
+  budget-service        # TCP :3002 (internal), depends on RabbitMQ
   notification-service  # TCP :3004 (internal), depends on RabbitMQ
   analytics-service     # TCP :3003 (internal), depends on Kafka
 
 volumes:
-  sqlite-data       # expenses.db
-  budget-data       # budgets.db
-  notification-data # notifications.db
-  analytics-data    # analytics.db
+  sqlite-data           # expenses.db
+  auth-data             # auth.db
+  budget-data           # budgets.db
+  notification-data     # notifications.db
+  analytics-data        # analytics.db
 ```
 
 All services share an `internal` bridge network. Only the gateway exposes a port to the host.
@@ -782,7 +814,7 @@ npm install
 # Start infrastructure (RabbitMQ + Kafka)
 docker-compose up -d rabbitmq kafka
 
-# Start all 5 services with hot-reload
+# Start all 6 services with hot-reload (gateway + auth + expenses + budget + notification + analytics)
 npm run dev
 
 # Or start individual services

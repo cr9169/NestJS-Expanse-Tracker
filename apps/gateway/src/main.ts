@@ -11,6 +11,16 @@ async function bootstrap(): Promise<void> {
 
   const config = app.get(AppConfigService);
 
+  // ── CORS ──────────────────────────────────────────────────────────────
+  // Browser-only concern. Allowlist comes from CORS_ORIGINS (comma-separated).
+  // Tools like curl/Swagger don't send Origin and aren't restricted by CORS.
+  app.enableCors({
+    origin: config.corsOrigins,
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'Accept'],
+  });
+
   // ── Swagger / OpenAPI ─────────────────────────────────────────────────
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Expense Tracker API')
